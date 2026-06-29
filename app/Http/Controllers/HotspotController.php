@@ -41,6 +41,7 @@ class HotspotController extends Controller
                     
                     if ($statusResponse->successful()) {
                         $responseData = $statusResponse->json();
+                        Log::info("Selcom Polling Response for $txn: " . json_encode($responseData));
                         
                         // Selcom returns status inside the data array: "data": [{"payment_status": "..."}]
                         if (!empty($responseData['data']) && isset($responseData['data'][0]['payment_status'])) {
