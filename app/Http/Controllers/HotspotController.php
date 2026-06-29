@@ -12,8 +12,9 @@ class HotspotController extends Controller
     public function showCheckout(Request $request)
     {
         $mac = $request->query('mac', '00:00:00:00:00:00'); 
+        $ip = $request->query('ip', '');
         $packages = \App\Models\Package::where('is_active', true)->get();
-        return view('checkout', compact('mac', 'packages'));
+        return view('checkout', compact('mac', 'ip', 'packages'));
     }
 
     public function showWaiting($txn)
@@ -75,7 +76,8 @@ class HotspotController extends Controller
         return view('waiting', [
             'txn' => $txn, 
             'status' => $transaction->status,
-            'mac' => $transaction->mac_address
+            'mac' => $transaction->mac_address,
+            'ip' => $transaction->ip_address
         ]);
     }
 
@@ -105,6 +107,7 @@ class HotspotController extends Controller
         DB::table('hotspot_transactions')->insert([
             'transaction_id' => $transactionId,
             'mac_address' => $request->mac,
+            'ip_address' => $request->ip,
             'phone_number' => $formattedPhone,
             'amount' => $amount,
             'duration_minutes' => $duration,

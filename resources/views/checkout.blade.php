@@ -147,6 +147,7 @@
             <form action="{{ route('hotspot.pay') }}" method="POST" id="checkout-form" onsubmit="document.getElementById('submit-btn').disabled = true; document.getElementById('submit-btn').innerText = 'Tafadhali subiri...'; document.getElementById('submit-btn').style.opacity = '0.7';">
                 @csrf
                 <input type="hidden" name="mac" value="{{ $mac }}">
+                <input type="hidden" name="ip" value="{{ $ip ?? '' }}">
 
 
                 <div class="form-group">
