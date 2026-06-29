@@ -195,7 +195,7 @@ class HotspotController extends Controller
         $transactionId = $request->input('order_id');
         $status = $request->input('payment_status'); 
 
-        if ($status === 'SUCCESS') {
+        if ($status === 'SUCCESS' || $status === 'COMPLETED') {
             DB::transaction(function () use ($transactionId) {
                 $localTxn = DB::table('hotspot_transactions')
                     ->where('transaction_id', $transactionId)
@@ -216,7 +216,7 @@ class HotspotController extends Controller
                     event(new \App\Events\WifiPaymentSuccess($localTxn));
                 }
             });
-        } elseif ($status === 'FAIL' || $status === 'FAILED') {
+        } elseif (in_array($status, ['FAIL', 'FAILED', 'CANCELLED', 'USERCANCELED'])) {
             DB::table('hotspot_transactions')
                 ->where('transaction_id', $transactionId)
                 ->where('status', 'PENDING')
