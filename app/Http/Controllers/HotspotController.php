@@ -69,10 +69,6 @@ class HotspotController extends Controller
 
             $orderResponse = $this->sendSelcomRequest('/v1/checkout/create-order-minimal', $orderBody);
 
-            if (!$orderResponse->successful()) {
-                throw new \Exception('Selcom Order Creation Failed: ' . $orderResponse->body() . ' | Check laravel.log for signature debug info.');
-            }
-
             // ========================================================
             // STEP 2: WALLET PULL PAYMENT (Triggers USSD STK Push)
             // ========================================================
@@ -83,10 +79,6 @@ class HotspotController extends Controller
             ];
 
             $walletResponse = $this->sendSelcomRequest('/v1/checkout/wallet-payment', $walletBody);
-
-            if (!$walletResponse->successful()) {
-                throw new \Exception('Selcom Wallet Pull Failed: ' . $walletResponse->body() . ' | Check laravel.log for signature debug info.');
-            }
 
             // Successfully triggered both calls! Show the waiting UI
             return view('waiting', ['txn' => $transactionId]);
@@ -118,8 +110,7 @@ class HotspotController extends Controller
             'Content-Type' => 'application/json',
         ];
 
-        // Log everything for debugging
-        Log::info("Selcom Request Debug:", [
+        $debugInfo = json_encode([
             'url' => env('SELCOM_BASE_URL') . $path,
             'stringToSign' => $stringToSign,
             'generatedSignature' => $signature,
@@ -128,7 +119,17 @@ class HotspotController extends Controller
             'headers' => $headers,
         ]);
 
-        return Http::withHeaders($headers)->post(env('SELCOM_BASE_URL') . $path, $body);
+        $response = Http::withHeaders($headers)->post(env('SELCOM_BASE_URL') . $path, $body);
+        
+        if (!$response->successful()) {
+            // Log safely to server's error log (e.g. Nginx/Apache error.log) and Laravel log
+            error_log("SELCOM DEBUG INFO: " . $debugInfo);
+            Log::error("SELCOM DEBUG INFO: " . $debugInfo);
+            
+            throw new \Exception("Selcom API Failed on $path. Check server error logs for details.");
+        }
+        
+        return $response;
     }
 
     /**
