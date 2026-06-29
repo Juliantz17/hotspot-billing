@@ -19,7 +19,7 @@ class HotspotController extends Controller
 
     public function showWaiting($txn)
     {
-        Log::info("--- WAITING PAGE ACCESSED FOR $txn ---");
+        Log::error("--- WAITING PAGE ACCESSED FOR $txn ---");
         
         $transaction = DB::table('hotspot_transactions')->where('transaction_id', $txn)->first();
         if (!$transaction) {
@@ -31,7 +31,7 @@ class HotspotController extends Controller
             $timeoutThreshold = now()->subMinutes(2)->toDateTimeString();
             
             if ($transaction->created_at <= $timeoutThreshold) {
-                Log::info("Transaction $txn timed out.");
+                Log::error("Transaction $txn timed out.");
                 // Time out after 2 minutes of waiting
                 DB::table('hotspot_transactions')
                     ->where('id', $transaction->id)
@@ -39,7 +39,7 @@ class HotspotController extends Controller
                 
                 $transaction->status = 'FAILED';
             } else {
-                Log::info("Executing Polling Block for $txn");
+                Log::error("Executing Polling Block for $txn");
                 // Actively poll Selcom for the latest order status
                 try {
                     $statusPath = '/v1/checkout/order-status?order_id=' . $txn;
@@ -47,7 +47,7 @@ class HotspotController extends Controller
                     
                     if ($statusResponse->successful()) {
                         $responseData = $statusResponse->json();
-                        Log::info("Selcom Polling Response for $txn: " . json_encode($responseData));
+                        Log::error("Selcom Polling Response for $txn: " . json_encode($responseData));
                         
                         // Selcom returns status inside the data array: "data": [{"payment_status": "..."}]
                         if (!empty($responseData['data']) && isset($responseData['data'][0]['payment_status'])) {
