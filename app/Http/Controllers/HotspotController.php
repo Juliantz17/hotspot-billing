@@ -32,6 +32,43 @@ class HotspotController extends Controller
                     ->update(['status' => 'FAILED', 'updated_at' => now()]);
                 
                 $transaction->status = 'FAILED';
+            } else {
+                // Actively poll Selcom for the latest order status
+                try {
+                    $statusPath = '/v1/checkout/order-status?order_id=' . $txn;
+                    $statusResponse = $this->sendSelcomRequest($statusPath, ['order_id' => $txn], 'GET');
+                    
+                    if ($statusResponse->successful()) {
+                        $responseData = $statusResponse->json();
+                        
+                        // Selcom returns status inside the data array: "data": [{"payment_status": "..."}]
+                        if (!empty($responseData['data']) && isset($responseData['data'][0]['payment_status'])) {
+                            $paymentStatus = strtoupper($responseData['data'][0]['payment_status']);
+                            
+                            if (in_array($paymentStatus, ['COMPLETED', 'SUCCESS'])) {
+                                DB::transaction(function () use ($transaction, $txn) {
+                                    DB::table('hotspot_transactions')
+                                        ->where('transaction_id', $txn)
+                                        ->update([
+                                            'status' => 'SUCCESS', 
+                                            'expires_at' => now()->addMinutes($transaction->duration_minutes),
+                                            'updated_at' => now()
+                                        ]);
+                                });
+                                $transaction->status = 'SUCCESS';
+                                event(new \App\Events\WifiPaymentSuccess($transaction));
+                            } elseif (in_array($paymentStatus, ['CANCELLED', 'USERCANCELED', 'USERCANCELLED', 'REJECTED', 'FAIL', 'FAILED'])) {
+                                DB::table('hotspot_transactions')
+                                    ->where('transaction_id', $txn)
+                                    ->update(['status' => 'FAILED', 'updated_at' => now()]);
+                                $transaction->status = 'FAILED';
+                            }
+                        }
+                    }
+                } catch (\Exception $e) {
+                    // Silently ignore connection errors here and keep polling
+                    Log::error("Failed to poll Selcom status for $txn: " . $e->getMessage());
+                }
             }
         }
 
