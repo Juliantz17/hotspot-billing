@@ -125,7 +125,7 @@ class HotspotController extends Controller
     /**
      * Dynamic Helper to compute custom signatures and execute calls natively
      */
-    private function sendSelcomRequest(string $path, array $body)
+    private function sendSelcomRequest(string $path, array $body = [], string $method = 'POST')
     {
         $baseUrl = env('SELCOM_BASE_URL');
         $apiSecret = env('SELCOM_API_SECRET');
@@ -171,7 +171,11 @@ class HotspotController extends Controller
             'headers' => $headers,
         ]);
 
-        $response = Http::withHeaders($headers)->post($baseUrl . $path, $body);
+        if (strtoupper($method) === 'GET') {
+            $response = Http::withHeaders($headers)->get($baseUrl . $path);
+        } else {
+            $response = Http::withHeaders($headers)->post($baseUrl . $path, $body);
+        }
         
         if (!$response->successful()) {
             // Log safely to server's error log (e.g. Nginx/Apache error.log) and Laravel log
