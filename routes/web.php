@@ -9,6 +9,9 @@ Route::get('/checkout', [HotspotController::class, 'showCheckout'])->name('hotsp
 // Handles processing form data
 Route::post('/process-payment', [HotspotController::class, 'processPayment'])->name('hotspot.pay');
 
+// Waiting page
+Route::get('/waiting/{txn}', [HotspotController::class, 'showWaiting'])->name('hotspot.waiting');
+
 // Webhook for Selcom Payment confirmation
 Route::post('/webhook/selcom', [HotspotController::class, 'handleWebhook'])->name('webhook.selcom');
 
@@ -25,6 +28,7 @@ Route::middleware(['admin'])->prefix('admin')->group(function () {
     // User management
     Route::post('/user/{id}/extend', [\App\Http\Controllers\AdminController::class, 'extend'])->name('admin.extend');
     Route::post('/user/{id}/kick', [\App\Http\Controllers\AdminController::class, 'kick'])->name('admin.kick');
+    Route::delete('/user/txn/{id}', [\App\Http\Controllers\AdminController::class, 'destroyTxn'])->name('admin.txn.destroy');
 
     // Packages
     Route::get('/packages', [\App\Http\Controllers\Admin\PackageController::class, 'index'])->name('admin.packages');

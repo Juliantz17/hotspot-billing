@@ -50,7 +50,11 @@
                                 <button type="submit" class="bg-red-600 hover:bg-red-700 text-white text-xs px-2 py-0.5 rounded-sm border border-red-700 shadow-sm">Kick</button>
                             </form>
                         @else
-                            <span class="text-gray-400 text-xs italic">N/A</span>
+                            <form method="POST" action="{{ route('admin.txn.destroy', $txn->id) }}" onsubmit="return confirm('Are you sure you want to delete this failed/pending transaction?');" class="m-0">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="bg-gray-500 hover:bg-gray-600 text-white text-xs px-2 py-0.5 rounded-sm shadow-sm">Delete</button>
+                            </form>
                         @endif
                     </td>
                 </tr>

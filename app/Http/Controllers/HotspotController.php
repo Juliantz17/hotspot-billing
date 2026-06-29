@@ -16,6 +16,16 @@ class HotspotController extends Controller
         return view('checkout', compact('mac', 'packages'));
     }
 
+    public function showWaiting($txn)
+    {
+        $transaction = DB::table('hotspot_transactions')->where('transaction_id', $txn)->first();
+        if (!$transaction) {
+            return redirect()->route('hotspot.checkout');
+        }
+
+        return view('waiting', ['txn' => $txn, 'status' => $transaction->status]);
+    }
+
     /**
      * Handle Form Submission & Process both Selcom API calls
      */
@@ -85,8 +95,8 @@ class HotspotController extends Controller
 
             $walletResponse = $this->sendSelcomRequest('/v1/checkout/wallet-payment', $walletBody);
 
-            // Successfully triggered both calls! Show the waiting UI
-            return view('waiting', ['txn' => $transactionId]);
+            // Successfully triggered both calls! Redirect to the waiting UI (Post/Redirect/Get pattern)
+            return redirect()->route('hotspot.waiting', ['txn' => $transactionId]);
 
         } catch (\Exception $e) {
             // Clean up DB tracking entry on failure
@@ -206,6 +216,11 @@ class HotspotController extends Controller
                     event(new \App\Events\WifiPaymentSuccess($localTxn));
                 }
             });
+        } elseif ($status === 'FAIL' || $status === 'FAILED') {
+            DB::table('hotspot_transactions')
+                ->where('transaction_id', $transactionId)
+                ->where('status', 'PENDING')
+                ->update(['status' => 'FAILED', 'updated_at' => now()]);
         }
 
         return response()->json(['status' => 'SUCCESS', 'message' => 'Received'], 200);

@@ -25,9 +25,20 @@
             {{ $txn }}
         </div>
         
+        @if($status === 'SUCCESS')
+        <div class="flex items-center justify-center gap-2 text-xs text-green-600 font-medium bg-green-50 py-2.5 px-4 rounded-xl">
+            <span>Malipo Yamekamilika! Tunakuunganisha...</span>
+        </div>
+        @elseif($status === 'FAILED')
+        <div class="flex flex-col items-center justify-center gap-2 text-xs text-red-600 font-medium bg-red-50 py-2.5 px-4 rounded-xl">
+            <span>Malipo Yameshindikana.</span>
+            <a href="{{ route('hotspot.checkout') }}" class="mt-1 bg-red-600 text-white px-3 py-1 rounded shadow-sm text-[10px] uppercase font-bold tracking-wider hover:bg-red-700">Jaribu Tena</a>
+        </div>
+        @else
         <div class="flex items-center justify-center gap-2 text-xs text-blue-600 font-medium bg-blue-50 py-2.5 px-4 rounded-xl animate-pulse">
             <span>Inasubiri malipo yako...</span>
         </div>
+        @endif
 
         <p class="text-[11px] text-gray-400 mt-6">
             Ukurasa huu utajifunga na internet itafunguka yenyewe punde tu ukishaweka PIN yako.
@@ -35,11 +46,12 @@
     </div>
 
     <script>
-        // Check for payment status update by refreshing the page or checking an internal route
-        // For development, we reload every 5 seconds to let the user see the redirection once the webhook hits.
+        // Only reload if the payment is still pending
+        @if($status !== 'SUCCESS' && $status !== 'FAILED')
         setTimeout(function() {
             window.location.reload();
         }, 5000);
+        @endif
     </script>
 
 </body>

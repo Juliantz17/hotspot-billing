@@ -15,7 +15,7 @@ class AdminController extends Controller
     {
         $transactions = DB::table('hotspot_transactions')
             ->orderBy('created_at', 'desc')
-            ->paginate(20);
+            ->paginate(10);
 
         return view('admin.dashboard', compact('transactions'));
     }
@@ -46,7 +46,7 @@ class AdminController extends Controller
         $transactionCount = clone $query;
         $transactionCount = $transactionCount->count();
 
-        $transactions = $query->orderBy('created_at', 'desc')->paginate(20)->appends(['filter' => $filter]);
+        $transactions = $query->orderBy('created_at', 'desc')->paginate(10)->appends(['filter' => $filter]);
 
         return view('admin.earnings', compact('totalEarnings', 'transactionCount', 'transactions', 'filter'));
     }
@@ -114,5 +114,16 @@ class AdminController extends Controller
             Log::error("Admin kick failed: " . $e->getMessage());
             return back()->withErrors(['error' => 'Failed to connect to router to kick user.']);
         }
+    }
+
+    public function destroyTxn($id)
+    {
+        $txn = DB::table('hotspot_transactions')->where('id', $id)->first();
+        if (!$txn || $txn->status === 'SUCCESS') {
+            return back()->withErrors(['error' => 'Cannot delete successful transactions.']);
+        }
+        
+        DB::table('hotspot_transactions')->where('id', $id)->delete();
+        return back()->with('success', 'Transaction deleted successfully.');
     }
 }
