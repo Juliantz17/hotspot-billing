@@ -54,8 +54,13 @@ class HotspotController extends Controller
             // ========================================================
             // STEP 1: CREATE ORDER MINIMAL
             // ========================================================
+            $vendorTill = env('SELCOM_VENDOR_TILL');
+            if (empty($vendorTill)) {
+                throw new \Exception('Configuration Error: SELCOM_VENDOR_TILL is missing or config is cached.');
+            }
+
             $orderBody = [
-                'vendor' => env('SELCOM_VENDOR_TILL'),
+                'vendor' => $vendorTill,
                 'order_id' => $transactionId,
                 'buyer_email' => 'customer@hotspot.net',
                 'buyer_name' => 'Hotspot Customer',
@@ -95,13 +100,21 @@ class HotspotController extends Controller
      */
     private function sendSelcomRequest(string $path, array $body)
     {
+        $baseUrl = env('SELCOM_BASE_URL');
+        $apiSecret = env('SELCOM_API_SECRET');
+        $apiKey = env('SELCOM_API_KEY');
+
+        if (empty($baseUrl) || empty($apiSecret) || empty($apiKey)) {
+            throw new \Exception("Configuration Error: SELCOM_BASE_URL, SELCOM_API_SECRET, or SELCOM_API_KEY is missing. If they are in your .env, try running: php artisan config:clear");
+        }
+
         $timestamp = now()->toIso8601String();
         $jsonData = json_encode($body);
         
         // Selcom signature format: timestamp=[ISO_Timestamp]&[RawJsonBody]
         $stringToSign = "timestamp=" . $timestamp . "&" . $jsonData;
-        $signature = base64_encode(hash_hmac('sha256', $stringToSign, env('SELCOM_API_SECRET'), true));
-        $authToken = base64_encode(env('SELCOM_API_KEY'));
+        $signature = base64_encode(hash_hmac('sha256', $stringToSign, $apiSecret, true));
+        $authToken = base64_encode($apiKey);
 
         $headers = [
             'Authorization' => 'SELCOM ' . $authToken,
@@ -111,15 +124,15 @@ class HotspotController extends Controller
         ];
 
         $debugInfo = json_encode([
-            'url' => env('SELCOM_BASE_URL') . $path,
+            'url' => $baseUrl . $path,
             'stringToSign' => $stringToSign,
             'generatedSignature' => $signature,
-            'hasApiKey' => env('SELCOM_API_KEY') ? 'YES' : 'NO',
-            'hasApiSecret' => env('SELCOM_API_SECRET') ? 'YES' : 'NO',
+            'hasApiKey' => 'YES',
+            'hasApiSecret' => 'YES',
             'headers' => $headers,
         ]);
 
-        $response = Http::withHeaders($headers)->post(env('SELCOM_BASE_URL') . $path, $body);
+        $response = Http::withHeaders($headers)->post($baseUrl . $path, $body);
         
         if (!$response->successful()) {
             // Log safely to server's error log (e.g. Nginx/Apache error.log) and Laravel log
