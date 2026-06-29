@@ -22,10 +22,14 @@
 
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Choose Bundle</label>
-                <select name="package" class="w-full border border-gray-300 p-3 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="1hour">1 Hour Access — 500 TZS</option>
-                    <option value="24hours">24 Hours Access — 2,000 TZS</option>
+                <select name="package_id" class="w-full border border-gray-300 p-3 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    @foreach($packages as $package)
+                        <option value="{{ $package->id }}">{{ $package->name }} — {{ number_format($package->price) }} TZS</option>
+                    @endforeach
                 </select>
+                @error('package_id')
+                    <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span>
+                @enderror
             </div>
 
             <div>

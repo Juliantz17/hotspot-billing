@@ -12,7 +12,8 @@ class HotspotController extends Controller
     public function showCheckout(Request $request)
     {
         $mac = $request->query('mac', '00:00:00:00:00:00'); 
-        return view('checkout', compact('mac'));
+        $packages = \App\Models\Package::where('is_active', true)->get();
+        return view('checkout', compact('mac', 'packages'));
     }
 
     /**
@@ -22,12 +23,17 @@ class HotspotController extends Controller
     {
         $request->validate([
             'phone' => 'required|regex:/^0[67][0-9]{8}$/', 
-            'package' => 'required|in:1hour,24hours',
+            'package_id' => 'required|exists:packages,id',
             'mac' => 'required'
         ]);
 
-        $duration = $request->package == '1hour' ? 60 : 1440;
-        $amount = $request->package == '1hour' ? 500 : 2000;
+        $package = \App\Models\Package::findOrFail($request->package_id);
+        if (!$package->is_active) {
+            return back()->withErrors(['package_id' => 'This package is no longer available.']);
+        }
+
+        $duration = $package->duration_minutes;
+        $amount = $package->price;
         
         $formattedPhone = '255' . substr($request->phone, 1);
         $transactionId = 'HOTSPOT_' . time();
@@ -120,28 +126,48 @@ class HotspotController extends Controller
     {
         Log::info('Selcom Raw Webhook Hit:', $request->all());
 
+        // Validate Selcom Signature
+        $providedSignature = $request->header('X-Selcom-Signature');
+        $timestamp = $request->header('X-Selcom-Timestamp');
+        
+        if (!$providedSignature || !$timestamp) {
+            Log::warning('Webhook rejected: Missing signature headers');
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        $jsonData = $request->getContent();
+        $stringToSign = "timestamp=" . $timestamp . "&" . $jsonData;
+        $computedSignature = base64_encode(hash_hmac('sha256', $stringToSign, env('SELCOM_API_SECRET'), true));
+
+        if (!hash_equals($computedSignature, $providedSignature)) {
+            Log::warning('Webhook rejected: Invalid signature');
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
         $transactionId = $request->input('order_id');
         $status = $request->input('payment_status'); 
 
         if ($status === 'SUCCESS') {
-            
-            $localTxn = DB::table('hotspot_transactions')
-                ->where('transaction_id', $transactionId)
-                ->first();
-
-            if ($localTxn && $localTxn->status === 'PENDING') {
-                
-                DB::table('hotspot_transactions')
+            DB::transaction(function () use ($transactionId) {
+                $localTxn = DB::table('hotspot_transactions')
                     ->where('transaction_id', $transactionId)
-                    ->update([
-                        'status' => 'SUCCESS',
-                        'expires_at' => now()->addMinutes($localTxn->duration_minutes),
-                        'updated_at' => now()
-                    ]);
+                    ->lockForUpdate()
+                    ->first();
 
-                // Fire your router configuration connection here
-                event(new \App\Events\WifiPaymentSuccess($localTxn));
-            }
+                if ($localTxn && $localTxn->status === 'PENDING') {
+                    
+                    DB::table('hotspot_transactions')
+                        ->where('transaction_id', $transactionId)
+                        ->update([
+                            'status' => 'SUCCESS',
+                            'expires_at' => now()->addMinutes($localTxn->duration_minutes),
+                            'updated_at' => now()
+                        ]);
+
+                    // Fire your router configuration connection here
+                    event(new \App\Events\WifiPaymentSuccess($localTxn));
+                }
+            });
         }
 
         return response()->json(['status' => 'SUCCESS', 'message' => 'Received'], 200);

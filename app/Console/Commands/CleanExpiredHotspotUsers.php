@@ -54,7 +54,7 @@ class CleanExpiredHotspotUsers extends Command
                 // Switch state parameters locally to isolate execution tracking strings
                 DB::table('hotspot_transactions')
                     ->where('id', $session->id)
-                    ->update(['status' => 'FAILED', 'updated_at' => now()]);
+                    ->update(['status' => 'EXPIRED', 'updated_at' => now()]);
             }
 
         } catch (\Exception $e) {
