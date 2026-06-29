@@ -19,14 +19,19 @@ class HotspotController extends Controller
 
     public function showWaiting($txn)
     {
+        Log::info("--- WAITING PAGE ACCESSED FOR $txn ---");
+        
         $transaction = DB::table('hotspot_transactions')->where('transaction_id', $txn)->first();
         if (!$transaction) {
             return redirect()->route('hotspot.checkout');
         }
 
         if ($transaction->status === 'PENDING') {
-            $createdAt = \Carbon\Carbon::parse($transaction->created_at);
-            if ($createdAt->diffInMinutes(now()) >= 2) {
+            // Use string comparison to avoid any timezone parsing offsets
+            $timeoutThreshold = now()->subMinutes(2)->toDateTimeString();
+            
+            if ($transaction->created_at <= $timeoutThreshold) {
+                Log::info("Transaction $txn timed out.");
                 // Time out after 2 minutes of waiting
                 DB::table('hotspot_transactions')
                     ->where('id', $transaction->id)
