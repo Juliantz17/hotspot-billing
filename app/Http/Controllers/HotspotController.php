@@ -35,7 +35,11 @@ class HotspotController extends Controller
             }
         }
 
-        return view('waiting', ['txn' => $txn, 'status' => $transaction->status]);
+        return view('waiting', [
+            'txn' => $txn, 
+            'status' => $transaction->status,
+            'mac' => $transaction->mac_address
+        ]);
     }
 
     /**
