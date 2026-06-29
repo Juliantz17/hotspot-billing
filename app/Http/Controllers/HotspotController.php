@@ -23,6 +23,18 @@ class HotspotController extends Controller
             return redirect()->route('hotspot.checkout');
         }
 
+        if ($transaction->status === 'PENDING') {
+            $createdAt = \Carbon\Carbon::parse($transaction->created_at);
+            if ($createdAt->diffInMinutes(now()) >= 2) {
+                // Time out after 2 minutes of waiting
+                DB::table('hotspot_transactions')
+                    ->where('id', $transaction->id)
+                    ->update(['status' => 'FAILED', 'updated_at' => now()]);
+                
+                $transaction->status = 'FAILED';
+            }
+        }
+
         return view('waiting', ['txn' => $txn, 'status' => $transaction->status]);
     }
 
@@ -79,7 +91,8 @@ class HotspotController extends Controller
                 'currency' => 'TZS',
                 'buyer_remarks' => 'WiFi Access',
                 'merchant_remarks' => 'WiFi Access',
-                'no_of_items' => 1
+                'no_of_items' => 1,
+                'webhook' => base64_encode(route('webhook.selcom'))
             ];
 
             $orderResponse = $this->sendSelcomRequest('/v1/checkout/create-order-minimal', $orderBody);
