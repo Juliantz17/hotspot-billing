@@ -77,8 +77,15 @@ class WebhookTest extends TestCase
         ]);
 
         $payload = [
+            'result' => 'SUCCESS',
+            'resultcode' => '000',
             'order_id' => $transactionId,
-            'payment_status' => 'SUCCESS',
+            'transid' => '7945454515',
+            'reference' => '856266164161',
+            'channel' => 'TIGOPESATZ',
+            'amount' => '500',
+            'phone' => '255700000000',
+            'payment_status' => 'COMPLETED',
         ];
 
         $jsonData = json_encode($payload);
