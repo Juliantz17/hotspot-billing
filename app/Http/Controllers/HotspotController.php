@@ -34,6 +34,7 @@ class HotspotController extends Controller
                 
                 $transaction->status = 'FAILED';
             } else {
+                Log::info("Executing Polling Block for $txn");
                 // Actively poll Selcom for the latest order status
                 try {
                     $statusPath = '/v1/checkout/order-status?order_id=' . $txn;
