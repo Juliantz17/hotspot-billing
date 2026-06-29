@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Corporate Wi-Fi Access</title>
+    <title>Mtandao wa Wi-Fi</title>
     <style>
         :root {
             --bg-color: #f3f4f6;
@@ -70,23 +70,6 @@
             line-height: 1.5;
         }
 
-        .mac-address {
-            background-color: var(--info-bg);
-            border: 1px solid var(--info-border);
-            padding: 0.75rem;
-            border-radius: 6px;
-            font-size: 0.875rem;
-            color: var(--text-main);
-            margin-bottom: 1.5rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .mac-address span {
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-            font-weight: 600;
-        }
 
         .form-group {
             margin-bottom: 1.25rem;
@@ -157,20 +140,17 @@
     <div class="container">
         <div class="card">
             <div class="header">
-                <h1>Wi-Fi Portal</h1>
-                <p>Please select a data plan and enter your mobile money number to connect.</p>
+                <h1>Mtandao wa Wi-Fi</h1>
+                <p>Tafadhali chagua kifurushi na uweke namba yako ya simu kuunganishwa.</p>
             </div>
 
             <form action="{{ route('hotspot.pay') }}" method="POST">
                 @csrf
                 <input type="hidden" name="mac" value="{{ $mac }}">
 
-                <div class="mac-address">
-                    Device MAC <span>{{ $mac }}</span>
-                </div>
 
                 <div class="form-group">
-                    <label for="package_id">Select Bundle</label>
+                    <label for="package_id">Chagua Kifurushi</label>
                     <select name="package_id" id="package_id" class="form-control">
                         @foreach($packages as $package)
                             <option value="{{ $package->id }}">{{ $package->name }} — {{ number_format($package->price) }} TZS</option>
@@ -182,15 +162,15 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="phone">Mobile Money Number</label>
-                    <input type="tel" name="phone" id="phone" placeholder="e.g. 0712345678" required class="form-control">
+                    <label for="phone">Namba ya Simu</label>
+                    <input type="tel" name="phone" id="phone" placeholder="mf. 0712345678" required class="form-control">
                     @error('phone')
                         <span class="error-message">{{ $message }}</span>
                     @enderror
                 </div>
 
                 <button type="submit" class="btn-submit">
-                    Pay and Connect
+                    Lipia Uunganishwe
                 </button>
             </form>
         </div>
