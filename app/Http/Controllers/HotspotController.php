@@ -70,7 +70,7 @@ class HotspotController extends Controller
             $orderResponse = $this->sendSelcomRequest('/v1/checkout/create-order-minimal', $orderBody);
 
             if (!$orderResponse->successful()) {
-                throw new \Exception('Selcom Order Creation Failed: ' . $orderResponse->body());
+                throw new \Exception('Selcom Order Creation Failed: ' . $orderResponse->body() . ' | Check laravel.log for signature debug info.');
             }
 
             // ========================================================
@@ -85,7 +85,7 @@ class HotspotController extends Controller
             $walletResponse = $this->sendSelcomRequest('/v1/checkout/wallet-payment', $walletBody);
 
             if (!$walletResponse->successful()) {
-                throw new \Exception('Selcom Wallet Pull Failed: ' . $walletResponse->body());
+                throw new \Exception('Selcom Wallet Pull Failed: ' . $walletResponse->body() . ' | Check laravel.log for signature debug info.');
             }
 
             // Successfully triggered both calls! Show the waiting UI
@@ -111,12 +111,24 @@ class HotspotController extends Controller
         $signature = base64_encode(hash_hmac('sha256', $stringToSign, env('SELCOM_API_SECRET'), true));
         $authToken = base64_encode(env('SELCOM_API_KEY'));
 
-        return Http::withHeaders([
+        $headers = [
             'Authorization' => 'SELCOM ' . $authToken,
             'X-Selcom-Signature' => $signature,
             'X-Selcom-Timestamp' => $timestamp,
             'Content-Type' => 'application/json',
-        ])->post(env('SELCOM_BASE_URL') . $path, $body);
+        ];
+
+        // Log everything for debugging
+        Log::info("Selcom Request Debug:", [
+            'url' => env('SELCOM_BASE_URL') . $path,
+            'stringToSign' => $stringToSign,
+            'generatedSignature' => $signature,
+            'hasApiKey' => env('SELCOM_API_KEY') ? 'YES' : 'NO',
+            'hasApiSecret' => env('SELCOM_API_SECRET') ? 'YES' : 'NO',
+            'headers' => $headers,
+        ]);
+
+        return Http::withHeaders($headers)->post(env('SELCOM_BASE_URL') . $path, $body);
     }
 
     /**

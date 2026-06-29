@@ -144,7 +144,7 @@
                 <p>Tafadhali chagua kifurushi na uweke namba yako ya simu kuunganishwa.</p>
             </div>
 
-            <form action="{{ route('hotspot.pay') }}" method="POST">
+            <form action="{{ route('hotspot.pay') }}" method="POST" id="checkout-form" onsubmit="document.getElementById('submit-btn').disabled = true; document.getElementById('submit-btn').innerText = 'Tafadhali subiri...'; document.getElementById('submit-btn').style.opacity = '0.7';">
                 @csrf
                 <input type="hidden" name="mac" value="{{ $mac }}">
 
@@ -169,7 +169,7 @@
                     @enderror
                 </div>
 
-                <button type="submit" class="btn-submit">
+                <button type="submit" id="submit-btn" class="btn-submit">
                     Lipia Uunganishwe
                 </button>
             </form>
