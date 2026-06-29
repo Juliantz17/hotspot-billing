@@ -3,42 +3,40 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\HotspotTransaction; // We will use default DB queries or model
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class HotspotController extends Controller
 {
-    /**
-     * Show the custom checkout page when redirected from MikroTik
-     */
     public function showCheckout(Request $request)
     {
-        // Capture the MAC address sent over the URL by MikroTik's login.html
-        $mac = $request->query('mac', 'UNKNOWN-MAC');
-        
-        // Pass it straight to our view
+        $mac = $request->query('mac', '00:00:00:00:00:00'); 
         return view('checkout', compact('mac'));
     }
 
     /**
-     * Handle the form submission to trigger payment
+     * Handle Form Submission & Process both Selcom API calls
      */
     public function processPayment(Request $request)
     {
         $request->validate([
-            'phone' => 'required|regex:/^0[67][0-9]{8}$/', // Validates Tanzanian formats like 0712345678
-            'package' => 'required'
+            'phone' => 'required|regex:/^0[67][0-9]{8}$/', 
+            'package' => 'required|in:1hour,24hours',
+            'mac' => 'required'
         ]);
 
-        // Determine price and duration based on package selection
         $duration = $request->package == '1hour' ? 60 : 1440;
         $amount = $request->package == '1hour' ? 500 : 2000;
-        $transactionId = 'SELCOM_' . time();
+        
+        $formattedPhone = '255' . substr($request->phone, 1);
+        $transactionId = 'HOTSPOT_' . time();
 
-        // 1. Save the initial pending payment track record to the database
-        \DB::table('hotspot_transactions')->insert([
+        // 1. Log the transaction as PENDING locally
+        DB::table('hotspot_transactions')->insert([
             'transaction_id' => $transactionId,
             'mac_address' => $request->mac,
-            'phone_number' => $request->phone,
+            'phone_number' => $formattedPhone,
             'amount' => $amount,
             'duration_minutes' => $duration,
             'status' => 'PENDING',
@@ -46,8 +44,106 @@ class HotspotController extends Controller
             'updated_at' => now(),
         ]);
 
-        // 2. Technical Placeholder: Next step is to call Selcom API here.
-        // For now, we simulate sending the customer to a processing screen.
-        return "Transaction generated! Reference: $transactionId. An STK push prompt will be sent to $request->phone.";
+        try {
+            // ========================================================
+            // STEP 1: CREATE ORDER MINIMAL
+            // ========================================================
+            $orderBody = [
+                'vendor' => env('SELCOM_VENDOR_TILL'),
+                'order_id' => $transactionId,
+                'buyer_email' => 'customer@hotspot.net',
+                'buyer_name' => 'Hotspot Customer',
+                'buyer_phone' => $formattedPhone,
+                'amount' => $amount,
+                'currency' => 'TZS',
+                'buyer_remarks' => 'WiFi Access',
+                'merchant_remarks' => 'WiFi Access',
+                'no_of_items' => 1
+            ];
+
+            $orderResponse = $this->sendSelcomRequest('/v1/checkout/create-order-minimal', $orderBody);
+
+            if (!$orderResponse->successful()) {
+                throw new \Exception('Selcom Order Creation Failed: ' . $orderResponse->body());
+            }
+
+            // ========================================================
+            // STEP 2: WALLET PULL PAYMENT (Triggers USSD STK Push)
+            // ========================================================
+            $walletBody = [
+                'transid' => 'TXN_' . uniqid(),
+                'order_id' => $transactionId,
+                'msisdn' => $formattedPhone
+            ];
+
+            $walletResponse = $this->sendSelcomRequest('/v1/checkout/wallet-payment', $walletBody);
+
+            if (!$walletResponse->successful()) {
+                throw new \Exception('Selcom Wallet Pull Failed: ' . $walletResponse->body());
+            }
+
+            // Successfully triggered both calls! Show the waiting UI
+            return view('waiting', ['txn' => $transactionId]);
+
+        } catch (\Exception $e) {
+            // Clean up DB tracking entry on failure
+            DB::table('hotspot_transactions')->where('transaction_id', $transactionId)->delete();
+            return back()->withErrors(['phone' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Dynamic Helper to compute custom signatures and execute calls natively
+     */
+    private function sendSelcomRequest(string $path, array $body)
+    {
+        $timestamp = now()->toIso8601String();
+        $jsonData = json_encode($body);
+        
+        // Selcom signature format: timestamp=[ISO_Timestamp]&[RawJsonBody]
+        $stringToSign = "timestamp=" . $timestamp . "&" . $jsonData;
+        $signature = base64_encode(hash_hmac('sha256', $stringToSign, env('SELCOM_API_SECRET'), true));
+        $authToken = base64_encode(env('SELCOM_API_KEY'));
+
+        return Http::withHeaders([
+            'Authorization' => 'SELCOM ' . $authToken,
+            'X-Selcom-Signature' => $signature,
+            'X-Selcom-Timestamp' => $timestamp,
+            'Content-Type' => 'application/json',
+        ])->post(env('SELCOM_BASE_URL') . $path, $body);
+    }
+
+    /**
+     * 3. Selcom Webhook Listener Endpoint
+     */
+    public function handleWebhook(Request $request)
+    {
+        Log::info('Selcom Raw Webhook Hit:', $request->all());
+
+        $transactionId = $request->input('order_id');
+        $status = $request->input('payment_status'); 
+
+        if ($status === 'SUCCESS') {
+            
+            $localTxn = DB::table('hotspot_transactions')
+                ->where('transaction_id', $transactionId)
+                ->first();
+
+            if ($localTxn && $localTxn->status === 'PENDING') {
+                
+                DB::table('hotspot_transactions')
+                    ->where('transaction_id', $transactionId)
+                    ->update([
+                        'status' => 'SUCCESS',
+                        'expires_at' => now()->addMinutes($localTxn->duration_minutes),
+                        'updated_at' => now()
+                    ]);
+
+                // Fire your router configuration connection here
+                event(new \App\Events\WifiPaymentSuccess($localTxn));
+            }
+        }
+
+        return response()->json(['status' => 'SUCCESS', 'message' => 'Received'], 200);
     }
 }

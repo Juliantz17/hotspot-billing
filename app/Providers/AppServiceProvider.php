@@ -3,6 +3,9 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Facades\Event;
+use Bryceandy\Selcom\Events\CheckoutWebhookReceived;
+use App\Listeners\ProcessSelcomPayment;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -19,6 +22,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Tells Laravel to watch for Selcom payment updates and fire your MikroTik link
+        Event::listen(
+            CheckoutWebhookReceived::class,
+            ProcessSelcomPayment::class
+        );
     }
 }
