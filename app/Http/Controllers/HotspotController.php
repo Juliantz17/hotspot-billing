@@ -172,7 +172,11 @@ class HotspotController extends Controller
      */
     public function handleWebhook(Request $request)
     {
-        Log::info('Selcom Raw Webhook Hit:', $request->all());
+        $jsonData = $request->getContent();
+        
+        Log::info('--- SELCOM WEBHOOK RECEIVED ---');
+        Log::info('Headers: ' . json_encode($request->headers->all()));
+        Log::info('Raw Payload: ' . $jsonData);
 
         // Validate Selcom Signature
         $providedSignature = $request->header('X-Selcom-Signature');
