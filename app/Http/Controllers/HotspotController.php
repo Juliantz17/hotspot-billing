@@ -109,24 +109,36 @@ class HotspotController extends Controller
         }
 
         $timestamp = now()->toIso8601String();
-        $jsonData = json_encode($body);
         
-        // Selcom signature format: timestamp=[ISO_Timestamp]&[RawJsonBody]
-        $stringToSign = "timestamp=" . $timestamp . "&" . $jsonData;
+        // Extract fields for Signed-Fields
+        $signedFieldsArray = array_keys($body);
+        $signedFields = implode(',', $signedFieldsArray);
+        
+        // Build signing string according to Selcom docs: timestamp=<val>&field1=<val>&field2=<val>
+        $stringToSign = "timestamp=" . $timestamp;
+        foreach ($signedFieldsArray as $key) {
+            // Values must match request payload exactly (no urlencoding unless specified)
+            $stringToSign .= "&" . $key . "=" . $body[$key];
+        }
+        
         $signature = base64_encode(hash_hmac('sha256', $stringToSign, $apiSecret, true));
         $authToken = base64_encode($apiKey);
 
         $headers = [
             'Authorization' => 'SELCOM ' . $authToken,
-            'X-Selcom-Signature' => $signature,
-            'X-Selcom-Timestamp' => $timestamp,
+            'Digest-Method' => 'HS256',
+            'Digest' => $signature,
+            'Timestamp' => $timestamp,
+            'Signed-Fields' => $signedFields,
             'Content-Type' => 'application/json',
+            'Accept' => 'application/json'
         ];
 
         $debugInfo = json_encode([
             'url' => $baseUrl . $path,
             'stringToSign' => $stringToSign,
             'generatedSignature' => $signature,
+            'signedFields' => $signedFields,
             'hasApiKey' => 'YES',
             'hasApiSecret' => 'YES',
             'headers' => $headers,
