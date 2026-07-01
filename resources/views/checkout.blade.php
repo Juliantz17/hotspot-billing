@@ -17,6 +17,8 @@
             --error: #ef4444;
             --info-bg: #f8fafc;
             --info-border: #e2e8f0;
+            --success-bg: #f0fdf4;
+            --success-text: #16a34a;
         }
 
         * {
@@ -75,7 +77,7 @@
             margin-bottom: 1.25rem;
         }
 
-        .form-group label {
+        .form-group label.form-label {
             display: block;
             font-size: 0.875rem;
             font-weight: 500;
@@ -95,18 +97,82 @@
             appearance: none;
         }
 
-        select.form-control {
-            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
-            background-position: right 0.5rem center;
-            background-repeat: no-repeat;
-            background-size: 1.5em 1.5em;
-            padding-right: 2.5rem;
-        }
-
         .form-control:focus {
             outline: none;
             border-color: var(--primary);
             box-shadow: 0 0 0 3px var(--focus-ring);
+        }
+
+        /* Package Cards CSS */
+        .packages-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .package-label {
+            display: block;
+            cursor: pointer;
+        }
+
+        .package-input {
+            display: none;
+        }
+
+        .package-card {
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+            transition: all 0.2s;
+            background: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.4rem;
+            height: 100%;
+        }
+
+        .package-card:hover {
+            border-color: var(--focus-ring);
+            background-color: var(--info-bg);
+        }
+
+        .package-input:checked + .package-card {
+            border-color: var(--primary);
+            background-color: #f8fafc;
+            box-shadow: 0 0 0 1px var(--primary);
+        }
+
+        .wifi-icon {
+            width: 28px;
+            height: 28px;
+            color: var(--primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .package-name {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .package-price {
+            font-size: 1.125rem;
+            font-weight: bold;
+            color: var(--primary);
+        }
+
+        .package-badge {
+            background-color: var(--success-bg);
+            color: var(--success-text);
+            font-size: 0.65rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 9999px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-top: 0.25rem;
         }
 
         .btn-submit {
@@ -140,8 +206,13 @@
     <div class="container">
         <div class="card">
             <div class="header">
-                <h1>Mtandao wa Wi-Fi</h1>
-                <p>Tafadhali chagua kifurushi na uweke namba yako ya simu kuunganishwa.</p>
+                <div style="display: flex; justify-content: center; margin-bottom: 1rem;">
+                    <svg style="width: 64px; height: 64px; color: var(--primary);" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M8.288 15.038a5.25 5.25 0 0 1 7.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 0 1 1.06 0Z" />
+                    </svg>
+                </div>
+                <h1>Hillton Wi-Fi</h1>
+                <p>Tafadhali chagua kifurushi na uweke namba yako ya simu Lipa kuunganishwa.</p>
             </div>
 
             <form action="{{ route('hotspot.pay') }}" method="POST" id="checkout-form" onsubmit="document.getElementById('submit-btn').disabled = true; document.getElementById('submit-btn').innerText = 'Tafadhali subiri...'; document.getElementById('submit-btn').style.opacity = '0.7';">
@@ -150,20 +221,30 @@
                 <input type="hidden" name="ip" value="{{ $ip ?? '' }}">
 
 
-                <div class="form-group">
-                    <label for="package_id">Chagua Kifurushi</label>
-                    <select name="package_id" id="package_id" class="form-control">
-                        @foreach($packages as $package)
-                            <option value="{{ $package->id }}">{{ $package->name }} — {{ number_format($package->price) }} TZS</option>
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label class="form-label" style="margin-bottom: 0.75rem;">Chagua Kifurushi</label>
+                    <div class="packages-grid">
+                        @foreach($packages as $index => $package)
+                            <label class="package-label">
+                                <input type="radio" name="package_id" value="{{ $package->id }}" class="package-input" required {{ $index === 0 ? 'checked' : '' }}>
+                                <div class="package-card">
+                                    <svg class="wifi-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                      <path stroke-linecap="round" stroke-linejoin="round" d="M8.288 15.038a5.25 5.25 0 0 1 7.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 0 1 1.06 0Z" />
+                                    </svg>
+                                    <span class="package-name">{{ $package->name }}</span>
+                                    <span class="package-price">{{ number_format($package->price) }}<small style="font-size: 0.65rem; color: var(--text-muted);"> TZS</small></span>
+                                    <span class="package-badge">Unlimited Data</span>
+                                </div>
+                            </label>
                         @endforeach
-                    </select>
+                    </div>
                     @error('package_id')
                         <span class="error-message">{{ $message }}</span>
                     @enderror
                 </div>
 
                 <div class="form-group">
-                    <label for="phone">Namba ya Simu</label>
+                    <label for="phone" class="form-label">Namba ya Simu</label>
                     <input type="tel" name="phone" id="phone" placeholder="mf. 0712345678" required class="form-control">
                     @error('phone')
                         <span class="error-message">{{ $message }}</span>
