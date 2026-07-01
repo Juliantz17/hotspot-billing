@@ -20,6 +20,10 @@
             <label class="block text-xs font-medium text-gray-700 mb-1">Price (TZS)</label>
             <input type="number" name="price" class="w-full border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:border-gray-500 rounded-sm" placeholder="1000" required>
         </div>
+        <div class="w-32">
+            <label class="block text-xs font-medium text-gray-700 mb-1">Speed Limit</label>
+            <input type="text" name="speed_limit" class="w-full border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:border-gray-500 rounded-sm" placeholder="e.g. 5M/5M" title="Leave blank for unlimited, or use Mikrotik format e.g. 5M/5M">
+        </div>
         <div class="w-24 flex items-center mb-1.5">
             <input type="checkbox" name="is_active" value="1" checked class="mr-2">
             <label class="text-xs font-medium text-gray-700">Active</label>
@@ -38,6 +42,7 @@
                 <th class="px-4 py-2 border-r border-gray-600">Name</th>
                 <th class="px-4 py-2 border-r border-gray-600">Duration</th>
                 <th class="px-4 py-2 border-r border-gray-600">Price (TZS)</th>
+                <th class="px-4 py-2 border-r border-gray-600">Speed Limit</th>
                 <th class="px-4 py-2 border-r border-gray-600 text-center">Status</th>
                 <th class="px-4 py-2 text-right">Actions</th>
             </tr>
@@ -57,6 +62,9 @@
                     </td>
                     <td class="px-4 py-2">
                         <input type="number" name="price" value="{{ $pkg->price }}" class="border border-gray-300 px-1 py-0.5 text-sm w-24 rounded-sm">
+                    </td>
+                    <td class="px-4 py-2">
+                        <input type="text" name="speed_limit" value="{{ $pkg->speed_limit }}" placeholder="5M/5M" class="border border-gray-300 px-1 py-0.5 text-sm w-20 rounded-sm">
                     </td>
                     <td class="px-4 py-2 text-center">
                         <input type="checkbox" name="is_active" value="1" {{ $pkg->is_active ? 'checked' : '' }}>

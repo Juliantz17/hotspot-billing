@@ -14,5 +14,6 @@ class Package extends Model
         'duration_minutes',
         'price',
         'is_active',
+        'speed_limit',
     ];
 }

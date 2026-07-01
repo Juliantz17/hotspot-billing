@@ -59,14 +59,20 @@ class ProvisionHotspotUser implements ShouldQueue
             // Create a hotspot user on MikroTik with an uptime limit
             $duration = $session->duration_minutes . 'm';
 
-            $routerClient->query([
+            $query = [
                 '/ip/hotspot/user/add',
                 '=name=' . $session->mac_address,
                 '=password=' . $session->mac_address,
                 '=mac-address=' . $session->mac_address,
                 '=limit-uptime=' . $duration,
                 '=comment=Selcom Txn ' . $session->transaction_id
-            ])->read();
+            ];
+
+            if (!empty($session->speed_limit)) {
+                $query[] = '=rate-limit=' . $session->speed_limit;
+            }
+
+            $routerClient->query($query)->read();
 
             // Force the router to instantly log them in so they don't have to disconnect/reconnect
             if (!empty($session->ip_address)) {

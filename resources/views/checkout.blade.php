@@ -233,7 +233,12 @@
                                     </svg>
                                     <span class="package-name">{{ $package->name }}</span>
                                     <span class="package-price">{{ number_format($package->price) }}<small style="font-size: 0.65rem; color: var(--text-muted);"> TZS</small></span>
-                                    <span class="package-badge">Unlimited Data</span>
+                                    <div style="display: flex; gap: 0.25rem; flex-wrap: wrap; justify-content: center;">
+                                        <span class="package-badge">Unlimited Data</span>
+                                        <span class="package-badge" style="background-color: #e0f2fe; color: #0284c7;">
+                                            {{ $package->speed_limit ? 'Speed: ' . str_replace('/',' | ', $package->speed_limit) : 'Max Speed' }}
+                                        </span>
+                                    </div>
                                 </div>
                             </label>
                         @endforeach

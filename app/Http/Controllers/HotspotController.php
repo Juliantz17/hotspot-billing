@@ -116,6 +116,7 @@ class HotspotController extends Controller
             'phone_number' => $formattedPhone,
             'amount' => $amount,
             'duration_minutes' => $duration,
+            'speed_limit' => $package->speed_limit,
             'status' => 'PENDING',
             'created_at' => now(),
             'updated_at' => now(),

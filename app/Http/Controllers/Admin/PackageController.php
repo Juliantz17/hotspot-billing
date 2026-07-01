@@ -20,7 +20,8 @@ class PackageController extends Controller
             'name' => 'required|string|max:255',
             'duration_minutes' => 'required|integer|min:1',
             'price' => 'required|integer|min:0',
-            'is_active' => 'boolean'
+            'is_active' => 'boolean',
+            'speed_limit' => 'nullable|string|max:50'
         ]);
 
         Package::create([
@@ -28,6 +29,7 @@ class PackageController extends Controller
             'duration_minutes' => $request->duration_minutes,
             'price' => $request->price,
             'is_active' => $request->has('is_active') ? true : false,
+            'speed_limit' => $request->speed_limit,
         ]);
 
         return back()->with('success', 'Package created successfully.');
@@ -39,7 +41,8 @@ class PackageController extends Controller
             'name' => 'required|string|max:255',
             'duration_minutes' => 'required|integer|min:1',
             'price' => 'required|integer|min:0',
-            'is_active' => 'boolean'
+            'is_active' => 'boolean',
+            'speed_limit' => 'nullable|string|max:50'
         ]);
 
         $package->update([
@@ -47,6 +50,7 @@ class PackageController extends Controller
             'duration_minutes' => $request->duration_minutes,
             'price' => $request->price,
             'is_active' => $request->has('is_active') ? true : false,
+            'speed_limit' => $request->speed_limit,
         ]);
 
         return back()->with('success', 'Package updated successfully.');
