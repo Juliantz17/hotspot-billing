@@ -35,26 +35,39 @@ class CleanExpiredHotspotUsers extends Command
             $routerClient = new RouterClient($config);
 
             foreach ($expiredSessions as $session) {
-                // Find the internal system ID (.id) assigned to this MAC address dynamically
-                $bindings = $routerClient->query([
-                    '/ip/hotspot/ip-binding/print',
+                // Find the actual user account on Mikrotik
+                $users = $routerClient->query([
+                    '/ip/hotspot/user/print',
                     '?mac-address=' . $session->mac_address
                 ])->read();
 
-                if (!empty($bindings)) {
-                    // Clear out the bypass rule to lock the customer device behind the captive gateway
+                if (!empty($users)) {
+                    // Delete the user account from Mikrotik
                     $routerClient->query([
-                        '/ip/hotspot/ip-binding/remove',
-                        '=.id=' . $bindings[0]['.id']
+                        '/ip/hotspot/user/remove',
+                        '=.id=' . $users[0]['.id']
                     ])->read();
-
-                    Log::info("Session Limit Exceeded. Device MAC [{$session->mac_address}] removed from active bindings.");
                 }
 
-                // Switch state parameters locally to isolate execution tracking strings
+                // Also kick them out if they are currently logged in
+                $active = $routerClient->query([
+                    '/ip/hotspot/active/print',
+                    '?user=' . $session->mac_address
+                ])->read();
+                
+                if (!empty($active)) {
+                    $routerClient->query([
+                        '/ip/hotspot/active/remove',
+                        '=.id=' . $active[0]['.id']
+                    ])->read();
+                }
+
+                Log::info("Session Limit Exceeded. Device MAC [{$session->mac_address}] fully removed from router.");
+
+                // To prevent SQL Enum errors (status doesn't allow 'EXPIRED'), we just clear the expires_at timestamp to mark it as processed, keeping status=SUCCESS for earnings!
                 DB::table('hotspot_transactions')
                     ->where('id', $session->id)
-                    ->update(['status' => 'EXPIRED', 'updated_at' => now()]);
+                    ->update(['expires_at' => null, 'updated_at' => now()]);
             }
 
         } catch (\Exception $e) {
