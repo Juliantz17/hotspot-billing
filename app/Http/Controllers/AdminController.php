@@ -102,7 +102,7 @@ class AdminController extends Controller
             }
 
             DB::table('hotspot_transactions')->where('id', $id)->update([
-                'status' => 'KICKED',
+                'expires_at' => now(),
                 'updated_at' => now(),
             ]);
 
