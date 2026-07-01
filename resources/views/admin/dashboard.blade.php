@@ -27,7 +27,11 @@
                     <td class="px-4 py-2 font-mono text-xs">{{ $txn->mac_address }}</td>
                     <td class="px-4 py-2">
                         @if($txn->status === 'SUCCESS')
-                            <span class="px-2 py-0.5 inline-flex text-xs font-bold bg-green-100 text-green-800 border border-green-300 rounded">ACTIVE</span>
+                            @if(is_null($txn->expires_at) || \Carbon\Carbon::parse($txn->expires_at)->isPast())
+                                <span class="px-2 py-0.5 inline-flex text-xs font-bold bg-red-100 text-red-800 border border-red-300 rounded">EXPIRED</span>
+                            @else
+                                <span class="px-2 py-0.5 inline-flex text-xs font-bold bg-green-100 text-green-800 border border-green-300 rounded">ACTIVE</span>
+                            @endif
                         @elseif($txn->status === 'PENDING')
                             <span class="px-2 py-0.5 inline-flex text-xs font-bold bg-yellow-100 text-yellow-800 border border-yellow-300 rounded">PENDING</span>
                         @else
