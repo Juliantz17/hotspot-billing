@@ -68,6 +68,21 @@ class ProvisionHotspotUser implements ShouldQueue
                 '=comment=Selcom Txn ' . $session->transaction_id
             ])->read();
 
+            // Force the router to instantly log them in so they don't have to disconnect/reconnect
+            if (!empty($session->ip_address)) {
+                try {
+                    $routerClient->query([
+                        '/ip/hotspot/active/login',
+                        '=user=' . $session->mac_address,
+                        '=password=' . $session->mac_address,
+                        '=ip=' . $session->ip_address,
+                        '=mac-address=' . $session->mac_address
+                    ])->read();
+                } catch (\Exception $e) {
+                    Log::warning("Could not auto-login MAC {$session->mac_address}. They must reconnect manually.", ['error' => $e->getMessage()]);
+                }
+            }
+
             Log::info("Provisioned user on Mikrotik for Txn: {$session->transaction_id}, MAC: {$session->mac_address}");
 
         } catch (\Exception $e) {
