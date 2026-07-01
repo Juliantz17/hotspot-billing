@@ -4,51 +4,235 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Processing Payment...</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-</head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+    <style>
+        :root {
+            --bg-color: #f3f4f6;
+            --card-bg: #ffffff;
+            --text-main: #1f2937;
+            --text-muted: #6b7280;
+            --border-color: #d1d5db;
+            --primary: #0f172a;
+            --success-bg: #f0fdf4;
+            --success-text: #16a34a;
+            --danger-bg: #fef2f2;
+            --danger-text: #dc2626;
+            --info-bg: #eff6ff;
+            --info-text: #2563eb;
+            --error: #ef4444;
+        }
 
-    <div class="bg-white p-6 rounded-2xl shadow-xl w-full max-w-md text-center border border-gray-100">
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            width: 100%;
+            max-width: 420px;
+            padding: 2.5rem 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        .spinner-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.5rem auto;
+            width: 64px;
+            height: 64px;
+        }
+
+        .spinner {
+            width: 64px;
+            height: 64px;
+            border: 4px solid var(--border-color);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .spinner-text {
+            position: absolute;
+            font-size: 0.75rem;
+            font-weight: bold;
+            color: var(--primary);
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+
+        .title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .desc {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: 1.5rem;
+            line-height: 1.5;
+        }
+
+        .txn-box {
+            background-color: #f9fafb;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 0.75rem;
+            margin-bottom: 1.5rem;
+            font-family: monospace;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        .txn-label {
+            display: block;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            font-weight: bold;
+            letter-spacing: 0.05em;
+            color: #9ca3af;
+            margin-bottom: 0.25rem;
+        }
+
+        .status-box {
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-success {
+            background-color: var(--success-bg);
+            color: var(--success-text);
+        }
+
+        .status-failed {
+            background-color: var(--danger-bg);
+            color: var(--danger-text);
+        }
+
+        .status-pending {
+            background-color: var(--info-bg);
+            color: var(--info-text);
+        }
+
+        .pulse-text {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            font-weight: bold;
+            text-decoration: none;
+            letter-spacing: 0.05em;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            border: none;
+        }
+
+        .btn-danger {
+            background-color: var(--error);
+            color: white;
+        }
+        .btn-danger:hover {
+            background-color: #b91c1c;
+        }
+
+        .link-muted {
+            font-size: 0.75rem;
+            color: var(--info-text);
+            text-decoration: underline;
+        }
+        .link-muted:hover {
+            color: #1d4ed8;
+        }
+
+        .footer-note {
+            font-size: 0.7rem;
+            color: #9ca3af;
+            margin-top: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="card">
         
-        <div class="relative flex items-center justify-center mx-auto mb-6">
-            <div class="animate-spin inline-block w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full"></div>
-            <div class="absolute w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center font-bold text-blue-600 text-xs">TZS</div>
+        <div class="spinner-container">
+            <div class="spinner"></div>
+            <div class="spinner-text">TZS</div>
         </div>
         
-        <h2 class="text-2xl font-bold text-gray-800 mb-2">Angalia Simu Yako!</h2>
-        <p class="text-sm text-gray-600 mb-4 px-2">
-            Tumekutumia ujumbe wa malipo (**STK Push**) kwenye simu yako. Tafadhali **weka PIN yako** ya sasa ya Mtandao ili kukamilisha ununuzi wa internet.
+        <h2 class="title">Angalia Simu Yako!</h2>
+        <p class="desc">
+            Tumekutumia ujumbe wa malipo (<strong>STK Push</strong>) kwenye simu yako. Tafadhali <strong>weka PIN yako</strong> ya sasa ya Mtandao ili kukamilisha ununuzi wa internet.
         </p>
         
-        <div class="bg-gray-50 rounded-xl p-3 border border-gray-200 text-xs text-gray-500 font-mono mb-6">
-            <span class="block text-gray-400 font-sans text-[10px] uppercase font-bold tracking-wider mb-1">Kumbukumbu ya Muamala</span>
+        <div class="txn-box">
+            <span class="txn-label">Kumbukumbu ya Muamala</span>
             {{ $txn }}
         </div>
         
         @if($status === 'SUCCESS')
-        <div class="flex items-center justify-center gap-2 text-xs text-green-600 font-medium bg-green-50 py-2.5 px-4 rounded-xl">
+        <div class="status-box status-success">
             <span>Malipo Yamekamilika! Tunakuunganisha...</span>
         </div>
         @elseif($status === 'FAILED')
-        <div class="flex flex-col items-center justify-center gap-2 text-xs text-red-600 font-medium bg-red-50 py-2.5 px-4 rounded-xl">
+        <div class="status-box status-failed">
             <span>Malipo Yameshindikana.</span>
-            <a href="{{ route('hotspot.checkout', ['mac' => $mac, 'ip' => $ip ?? '']) }}" class="mt-1 bg-red-600 text-white px-3 py-1 rounded shadow-sm text-[10px] uppercase font-bold tracking-wider hover:bg-red-700">Jaribu Tena</a>
+            <a href="{{ route('hotspot.checkout', ['mac' => $mac, 'ip' => $ip ?? '']) }}" class="btn btn-danger">Jaribu Tena</a>
         </div>
         @else
-        <div class="flex flex-col items-center justify-center gap-2 text-xs text-blue-600 font-medium bg-blue-50 py-2.5 px-4 rounded-xl">
-            <span class="animate-pulse">Inasubiri malipo yako...</span>
-            <a href="{{ route('hotspot.checkout', ['mac' => $mac ?? '', 'ip' => $ip ?? '']) }}" class="mt-2 text-blue-500 hover:text-blue-700 underline text-[10px]">Ghairi / Jaribu Tena</a>
+        <div class="status-box status-pending">
+            <span class="pulse-text">Inasubiri malipo yako...</span>
+            <a href="{{ route('hotspot.checkout', ['mac' => $mac ?? '', 'ip' => $ip ?? '']) }}" class="link-muted">Ghairi / Jaribu Tena</a>
         </div>
         @endif
 
-        <p class="text-[11px] text-gray-400 mt-6">
+        <p class="footer-note">
             Ukurasa huu utajifunga na internet itafunguka yenyewe punde tu ukishaweka PIN yako.
         </p>
     </div>
 
     <script>
+        @if($status === 'SUCCESS')
+        // Automatically redirect to google to dismiss the captive portal after successful payment
+        setTimeout(function() {
+            window.location.href = 'https://www.google.com';
+        }, 3000);
+        @elseif($status !== 'FAILED')
         // Only reload if the payment is still pending
-        @if($status !== 'SUCCESS' && $status !== 'FAILED')
         setTimeout(function() {
             window.location.reload();
         }, 5000);
