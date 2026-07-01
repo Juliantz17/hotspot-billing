@@ -53,14 +53,18 @@ class ProvisionHotspotUser implements ShouldQueue
                 ->set('user', env('MIKROTIK_USER'))
                 ->set('pass', env('MIKROTIK_PASS'))
                 ->set('port', 8728);
+            // Resolve from the Laravel container so we can mock it in tests
+            $routerClient = app(RouterClient::class, ['config' => $config]);
 
-            $routerClient = new RouterClient($config);
+            // Create a hotspot user on MikroTik with an uptime limit
+            $duration = $session->duration_minutes . 'm';
 
-            // Add the user to ip-binding to bypass the captive portal
             $routerClient->query([
-                '/ip/hotspot/ip-binding/add',
+                '/ip/hotspot/user/add',
+                '=name=' . $session->mac_address,
+                '=password=' . $session->mac_address,
                 '=mac-address=' . $session->mac_address,
-                '=type=bypassed',
+                '=limit-uptime=' . $duration,
                 '=comment=Selcom Txn ' . $session->transaction_id
             ])->read();
 
