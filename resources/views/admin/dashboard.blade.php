@@ -54,6 +54,12 @@
                                 <button type="submit" class="bg-red-600 hover:bg-red-700 text-white text-xs px-2 py-0.5 rounded-sm border border-red-700 shadow-sm">Kick</button>
                             </form>
                         @else
+                            @if($txn->status === 'PENDING')
+                                <form method="POST" action="{{ route('admin.reconnect', $txn->id) }}" onsubmit="return confirm('Reconnect this user by transferring their active package to this new MAC address?');" class="m-0 mr-1">
+                                    @csrf
+                                    <button type="submit" class="bg-green-600 hover:bg-green-700 text-white text-xs px-2 py-0.5 rounded-sm shadow-sm border border-green-700">Reconnect</button>
+                                </form>
+                            @endif
                             <form method="POST" action="{{ route('admin.txn.destroy', $txn->id) }}" onsubmit="return confirm('Are you sure you want to delete this failed/pending transaction?');" class="m-0">
                                 @csrf
                                 @method('DELETE')

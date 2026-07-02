@@ -22,13 +22,14 @@ Route::post('/admin/logout', [\App\Http\Controllers\AuthController::class, 'logo
 
 // Admin Dashboard & Features
 Route::middleware(['admin'])->prefix('admin')->group(function () {
-    Route::get('/', [\App\Http\Controllers\AdminController::class, 'index'])->name('admin.dashboard');
-    Route::get('/earnings', [\App\Http\Controllers\AdminController::class, 'earnings'])->name('admin.earnings');
+    Route::get('/', [AdminController::class, 'index'])->name('admin.dashboard');
+    Route::get('/earnings', [AdminController::class, 'earnings'])->name('admin.earnings');
     
     // User management
-    Route::post('/user/{id}/extend', [\App\Http\Controllers\AdminController::class, 'extend'])->name('admin.extend');
-    Route::post('/user/{id}/kick', [\App\Http\Controllers\AdminController::class, 'kick'])->name('admin.kick');
-    Route::delete('/user/txn/{id}', [\App\Http\Controllers\AdminController::class, 'destroyTxn'])->name('admin.txn.destroy');
+    Route::post('/transactions/{id}/extend', [AdminController::class, 'extend'])->name('admin.extend');
+    Route::post('/transactions/{id}/kick', [AdminController::class, 'kick'])->name('admin.kick');
+    Route::post('/transactions/{id}/reconnect', [AdminController::class, 'reconnectDevice'])->name('admin.reconnect');
+    Route::delete('/transactions/{id}', [AdminController::class, 'destroyTxn'])->name('admin.txn.destroy');
 
     // Packages
     Route::get('/packages', [\App\Http\Controllers\Admin\PackageController::class, 'index'])->name('admin.packages');

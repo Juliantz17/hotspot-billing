@@ -126,4 +126,88 @@ class AdminController extends Controller
         DB::table('hotspot_transactions')->where('id', $id)->delete();
         return back()->with('success', 'Transaction deleted successfully.');
     }
+
+    public function reconnectDevice($id)
+    {
+        $pendingTxn = DB::table('hotspot_transactions')->where('id', $id)->first();
+
+        if (!$pendingTxn || $pendingTxn->status !== 'PENDING') {
+            return back()->withErrors(['error' => 'Can only reconnect from PENDING transactions.']);
+        }
+
+        // Find the user's last SUCCESS transaction that still has time
+        $activeTxn = DB::table('hotspot_transactions')
+            ->where('phone_number', $pendingTxn->phone_number)
+            ->where('status', 'SUCCESS')
+            ->where('expires_at', '>', now())
+            ->latest()
+            ->first();
+
+        if (!$activeTxn) {
+            return back()->withErrors(['error' => 'No active package found for this phone number.']);
+        }
+
+        $remainingMinutes = now()->diffInMinutes($activeTxn->expires_at);
+
+        if ($remainingMinutes < 1) {
+            return back()->withErrors(['error' => 'Active package has expired.']);
+        }
+
+        // Kick the old MAC address
+        try {
+            $config = (new Config())
+                ->set('host', env('MIKROTIK_HOST'))
+                ->set('user', env('MIKROTIK_USER'))
+                ->set('pass', env('MIKROTIK_PASS'))
+                ->set('port', 8728);
+
+            $routerClient = new RouterClient($config);
+
+            $macsToClear = [
+                strtolower($activeTxn->mac_address),
+                strtoupper($activeTxn->mac_address)
+            ];
+
+            foreach ($macsToClear as $macTarget) {
+                $activeUsers = $routerClient->query(['/ip/hotspot/active/print', '?mac-address=' . $macTarget])->read();
+                foreach ($activeUsers as $user) {
+                    $routerClient->query(['/ip/hotspot/active/remove', '=.id=' . $user['.id']])->read();
+                }
+
+                $hotspotUsers = $routerClient->query(['/ip/hotspot/user/print', '?name=' . $macTarget])->read();
+                foreach ($hotspotUsers as $user) {
+                    $routerClient->query(['/ip/hotspot/user/remove', '=.id=' . $user['.id']])->read();
+                }
+
+                $cookies = $routerClient->query(['/ip/hotspot/cookie/print', '?mac-address=' . $macTarget])->read();
+                foreach ($cookies as $cookie) {
+                    $routerClient->query(['/ip/hotspot/cookie/remove', '=.id=' . $cookie['.id']])->read();
+                }
+            }
+        } catch (\Exception $e) {
+            Log::warning("Could not kick old MAC {$activeTxn->mac_address} during admin reconnect.", ['error' => $e->getMessage()]);
+        }
+
+        DB::transaction(function () use ($pendingTxn, $activeTxn, $remainingMinutes) {
+            // Expire the old transaction
+            DB::table('hotspot_transactions')->where('id', $activeTxn->id)->update([
+                'expires_at' => now(),
+                'updated_at' => now()
+            ]);
+
+            // Activate the new transaction
+            DB::table('hotspot_transactions')->where('id', $pendingTxn->id)->update([
+                'status' => 'SUCCESS',
+                'duration_minutes' => $remainingMinutes,
+                'expires_at' => now()->addMinutes($remainingMinutes),
+                'updated_at' => now()
+            ]);
+        });
+
+        // Fetch updated transaction and trigger provision
+        $updatedTxn = DB::table('hotspot_transactions')->where('id', $pendingTxn->id)->first();
+        event(new \App\Events\WifiPaymentSuccess($updatedTxn));
+
+        return back()->with('success', 'User device reconnected successfully for ' . $remainingMinutes . ' minutes.');
+    }
 }
