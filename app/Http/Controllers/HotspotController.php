@@ -14,7 +14,6 @@ class HotspotController extends Controller
         $mac = $request->query('mac', '00:00:00:00:00:00'); 
         $ip = $request->query('ip', '');
         
-        $activeTxn = null;
         if ($mac !== '00:00:00:00:00:00') {
             $activeTxn = DB::table('hotspot_transactions')
                 ->where('mac_address', $mac)
@@ -22,6 +21,64 @@ class HotspotController extends Controller
                 ->where('expires_at', '>', now())
                 ->latest()
                 ->first();
+
+            // Auto-reconnect seamlessly if they are active
+            if ($activeTxn && !$request->has('manual')) {
+                try {
+                    $config = (new \RouterOS\Config())
+                        ->set('host', env('MIKROTIK_HOST'))
+                        ->set('user', env('MIKROTIK_USER'))
+                        ->set('pass', env('MIKROTIK_PASS'))
+                        ->set('port', 8728);
+
+                    $routerClient = new \RouterOS\Client($config);
+                    $remainingMinutes = now()->diffInMinutes($activeTxn->expires_at);
+
+                    if ($remainingMinutes > 0) {
+                        try {
+                            $users = $routerClient->query(['/ip/hotspot/user/print', '?name=' . $mac])->read();
+                            foreach ($users as $u) {
+                                $routerClient->query(['/ip/hotspot/user/remove', '=.id=' . $u['.id']])->read();
+                            }
+                        } catch (\Exception $e) {}
+
+                        $query = [
+                            '/ip/hotspot/user/add',
+                            '=name=' . $mac,
+                            '=password=' . $mac,
+                            '=mac-address=' . $mac,
+                            '=limit-uptime=' . $remainingMinutes . 'm',
+                            '=comment=Auto-Reconnect Txn ' . $activeTxn->transaction_id
+                        ];
+
+                        if (!empty($activeTxn->speed_limit)) {
+                            $query[] = '=rate-limit=' . $activeTxn->speed_limit;
+                        }
+
+                        $routerClient->query($query)->read();
+
+                        if (!empty($ip)) {
+                            try {
+                                $routerClient->query([
+                                    '/ip/hotspot/active/login',
+                                    '=user=' . $mac,
+                                    '=password=' . $mac,
+                                    '=ip=' . $ip,
+                                    '=mac-address=' . $mac
+                                ])->read();
+                            } catch (\Exception $e) {}
+                        }
+
+                        // Seamlessly return a success message instead of checkout
+                        return response(view('reconnected', [
+                            'expires_at' => $activeTxn->expires_at
+                        ]));
+                    }
+                } catch (\Exception $e) {
+                    Log::error("Auto-reconnect failed in showCheckout: " . $e->getMessage());
+                    // Silently fall back to showing the checkout page with the manual button
+                }
+            }
         }
 
         $packages = \App\Models\Package::where('is_active', true)->get();

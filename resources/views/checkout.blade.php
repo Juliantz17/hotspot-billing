@@ -240,7 +240,7 @@
                     <p style="font-size: 0.875rem; color: var(--text-main); margin-bottom: 1rem;">
                         Una kifurushi kinachoendelea ambacho kitaisha muda wake tarehe {{ \Carbon\Carbon::parse($activeTxn->expires_at)->format('d M Y, H:i') }}.
                     </p>
-                    <button type="submit" formaction="{{ route('hotspot.reconnect_user') }}" formmethod="POST" class="btn-submit" style="background-color: var(--success-text); margin-top: 0;">Unganisha Tena Bure</button>
+                    <button type="submit" formnovalidate formaction="{{ route('hotspot.reconnect_user') }}" formmethod="POST" class="btn-submit" style="background-color: var(--success-text); margin-top: 0;">Unganisha Tena Bure</button>
                     @if(session('success'))
                         <div style="margin-top: 0.5rem; color: var(--success-text); font-weight: bold;">{{ session('success') }}</div>
                     @endif
