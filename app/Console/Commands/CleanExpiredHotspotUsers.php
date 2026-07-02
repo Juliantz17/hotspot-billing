@@ -27,9 +27,9 @@ class CleanExpiredHotspotUsers extends Command
 
         try {
             $config = (new Config())
-                ->set('host', env('MIKROTIK_HOST'))
-                ->set('user', env('MIKROTIK_USER'))
-                ->set('pass', env('MIKROTIK_PASS'))
+                ->set('host', config('services.mikrotik.host'))
+                ->set('user', config('services.mikrotik.user'))
+                ->set('pass', config('services.mikrotik.pass'))
                 ->set('port', 8728);
 
             $routerClient = new RouterClient($config);

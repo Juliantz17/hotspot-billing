@@ -7,6 +7,7 @@ use App\Http\Controllers\AdminController;
 // The URL customers are dropped onto from the MikroTik network
 Route::get('/checkout', [HotspotController::class, 'showCheckout'])->name('hotspot.checkout');
 Route::post('/reconnect-user', [HotspotController::class, 'reconnectUser'])->name('hotspot.reconnect_user');
+Route::post('/recover-package', [HotspotController::class, 'recoverPackage'])->name('hotspot.recover_package');
 
 // Handles processing form data
 Route::post('/process-payment', [HotspotController::class, 'processPayment'])->name('hotspot.pay');

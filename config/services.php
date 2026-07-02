@@ -35,4 +35,17 @@ return [
         ],
     ],
 
+    'mikrotik' => [
+        'host' => env('MIKROTIK_HOST'),
+        'user' => env('MIKROTIK_USER'),
+        'pass' => env('MIKROTIK_PASS'),
+    ],
+
+    'selcom' => [
+        'base_url' => env('SELCOM_BASE_URL'),
+        'api_secret' => env('SELCOM_API_SECRET'),
+        'api_key' => env('SELCOM_API_KEY'),
+        'vendor_till' => env('SELCOM_VENDOR_TILL'),
+    ],
+
 ];

@@ -26,9 +26,9 @@ class HotspotController extends Controller
             if ($activeTxn && !$request->has('manual')) {
                 try {
                     $config = (new \RouterOS\Config())
-                        ->set('host', env('MIKROTIK_HOST'))
-                        ->set('user', env('MIKROTIK_USER'))
-                        ->set('pass', env('MIKROTIK_PASS'))
+                        ->set('host', config('services.mikrotik.host'))
+                        ->set('user', config('services.mikrotik.user'))
+                        ->set('pass', config('services.mikrotik.pass'))
                         ->set('port', 8728);
 
                     $routerClient = new \RouterOS\Client($config);
@@ -113,9 +113,9 @@ class HotspotController extends Controller
 
         try {
             $config = (new \RouterOS\Config())
-                ->set('host', env('MIKROTIK_HOST'))
-                ->set('user', env('MIKROTIK_USER'))
-                ->set('pass', env('MIKROTIK_PASS'))
+                ->set('host', config('services.mikrotik.host'))
+                ->set('user', config('services.mikrotik.user'))
+                ->set('pass', config('services.mikrotik.pass'))
                 ->set('port', 8728);
 
             $routerClient = new \RouterOS\Client($config);
@@ -166,6 +166,119 @@ class HotspotController extends Controller
         } catch (\Exception $e) {
             Log::error("User reconnect failed: " . $e->getMessage());
             return back()->withErrors(['reconnect' => 'Imeshindwa kuunganisha kwenye router.']);
+        }
+    }
+
+    public function recoverPackage(Request $request)
+    {
+        $request->validate([
+            'phone' => 'required|regex:/^0[67][0-9]{8}$/',
+            'mac' => 'required'
+        ]);
+
+        $formattedPhone = '255' . substr($request->phone, 1);
+        $newMac = $request->input('mac');
+        $ip = $request->input('ip', '');
+
+        // Find the active transaction for this phone
+        $activeTxn = DB::table('hotspot_transactions')
+            ->where('phone_number', $formattedPhone)
+            ->where('status', 'SUCCESS')
+            ->where('expires_at', '>', now())
+            ->latest()
+            ->first();
+
+        if (!$activeTxn) {
+            return back()->withErrors(['recover' => 'Hakuna kifurushi kinachoendelea kwa namba hii ya simu.']);
+        }
+
+        try {
+            $config = (new \RouterOS\Config())
+                ->set('host', config('services.mikrotik.host'))
+                ->set('user', config('services.mikrotik.user'))
+                ->set('pass', config('services.mikrotik.pass'))
+                ->set('port', 8728);
+
+            $routerClient = new \RouterOS\Client($config);
+
+            $remainingMinutes = now()->diffInMinutes($activeTxn->expires_at);
+            if ($remainingMinutes < 1) {
+                return back()->withErrors(['recover' => 'Kifurushi chako kimeisha.']);
+            }
+
+            // 1. Kick the old MAC address to prevent connection sharing
+            $oldMac = $activeTxn->mac_address;
+            try {
+                // Remove from active
+                $activeSessions = $routerClient->query(['/ip/hotspot/active/print', '?mac-address=' . $oldMac])->read();
+                foreach ($activeSessions as $as) {
+                    $routerClient->query(['/ip/hotspot/active/remove', '=.id=' . $as['.id']])->read();
+                }
+                // Remove from users
+                $users = $routerClient->query(['/ip/hotspot/user/print', '?name=' . $oldMac])->read();
+                foreach ($users as $u) {
+                    $routerClient->query(['/ip/hotspot/user/remove', '=.id=' . $u['.id']])->read();
+                }
+            } catch (\Exception $e) {}
+
+            // 2. Clear any existing session for the NEW MAC just in case
+            try {
+                $activeSessions = $routerClient->query(['/ip/hotspot/active/print', '?mac-address=' . $newMac])->read();
+                foreach ($activeSessions as $as) {
+                    $routerClient->query(['/ip/hotspot/active/remove', '=.id=' . $as['.id']])->read();
+                }
+                $users = $routerClient->query(['/ip/hotspot/user/print', '?name=' . $newMac])->read();
+                foreach ($users as $u) {
+                    $routerClient->query(['/ip/hotspot/user/remove', '=.id=' . $u['.id']])->read();
+                }
+            } catch (\Exception $e) {}
+
+            // 3. Add the new MAC to users
+            $query = [
+                '/ip/hotspot/user/add',
+                '=name=' . $newMac,
+                '=password=' . $newMac,
+                '=mac-address=' . $newMac,
+                '=limit-uptime=' . $remainingMinutes . 'm',
+                '=comment=Recovered Txn ' . $activeTxn->transaction_id
+            ];
+
+            if (!empty($activeTxn->speed_limit)) {
+                $query[] = '=rate-limit=' . $activeTxn->speed_limit;
+            }
+
+            $routerClient->query($query)->read();
+
+            // 4. Update the database to point to the new MAC
+            DB::table('hotspot_transactions')
+                ->where('id', $activeTxn->id)
+                ->update([
+                    'mac_address' => $newMac,
+                    'ip_address' => $ip,
+                    'updated_at' => now()
+                ]);
+
+            // 5. Try active login
+            if (!empty($ip)) {
+                try {
+                    $routerClient->query([
+                        '/ip/hotspot/active/login',
+                        '=user=' . $newMac,
+                        '=password=' . $newMac,
+                        '=ip=' . $ip,
+                        '=mac-address=' . $newMac
+                    ])->read();
+                } catch (\Exception $e) {}
+            }
+
+            // Return success view
+            return response(view('reconnected', [
+                'expires_at' => $activeTxn->expires_at
+            ]));
+
+        } catch (\Exception $e) {
+            Log::error("Package recovery failed: " . $e->getMessage());
+            return back()->withErrors(['recover' => 'Imeshindwa kuunganisha kwenye router.']);
         }
     }
 
@@ -278,7 +391,7 @@ class HotspotController extends Controller
             // ========================================================
             // STEP 1: CREATE ORDER MINIMAL
             // ========================================================
-            $vendorTill = env('SELCOM_VENDOR_TILL');
+            $vendorTill = config('services.selcom.vendor_till');
             if (empty($vendorTill)) {
                 throw new \Exception('Configuration Error: SELCOM_VENDOR_TILL is missing or config is cached.');
             }
@@ -325,9 +438,9 @@ class HotspotController extends Controller
      */
     private function sendSelcomRequest(string $path, array $body = [], string $method = 'POST')
     {
-        $baseUrl = env('SELCOM_BASE_URL');
-        $apiSecret = env('SELCOM_API_SECRET');
-        $apiKey = env('SELCOM_API_KEY');
+        $baseUrl = config('services.selcom.base_url');
+        $apiSecret = config('services.selcom.api_secret');
+        $apiKey = config('services.selcom.api_key');
 
         if (empty($baseUrl) || empty($apiSecret) || empty($apiKey)) {
             throw new \Exception("Configuration Error: SELCOM_BASE_URL, SELCOM_API_SECRET, or SELCOM_API_KEY is missing. If they are in your .env, try running: php artisan config:clear");
@@ -408,7 +521,7 @@ class HotspotController extends Controller
 
         $jsonData = $request->getContent();
         $stringToSign = "timestamp=" . $timestamp . "&" . $jsonData;
-        $computedSignature = base64_encode(hash_hmac('sha256', $stringToSign, env('SELCOM_API_SECRET'), true));
+        $computedSignature = base64_encode(hash_hmac('sha256', $stringToSign, config('services.selcom.api_secret'), true));
 
         if (!hash_equals($computedSignature, $providedSignature)) {
             Log::warning('Webhook rejected: Invalid signature');

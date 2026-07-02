@@ -49,9 +49,9 @@ class ProvisionHotspotUser implements ShouldQueue
 
         try {
             $config = (new Config())
-                ->set('host', env('MIKROTIK_HOST'))
-                ->set('user', env('MIKROTIK_USER'))
-                ->set('pass', env('MIKROTIK_PASS'))
+                ->set('host', config('services.mikrotik.host'))
+                ->set('user', config('services.mikrotik.user'))
+                ->set('pass', config('services.mikrotik.pass'))
                 ->set('port', 8728);
             // Resolve from the Laravel container so we can mock it in tests
             $routerClient = app(RouterClient::class, ['config' => $config]);

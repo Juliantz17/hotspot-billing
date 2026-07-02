@@ -248,6 +248,23 @@
                         <div style="margin-top: 0.5rem; color: var(--error); font-weight: bold; font-size: 0.875rem;">{{ $message }}</div>
                     @enderror
                 </div>
+                @else
+                <div style="background-color: var(--info-bg); border: 1px solid var(--info-border); border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; text-align: center;">
+                    <p style="font-size: 0.875rem; color: var(--info-text); margin-bottom: 0.5rem;">
+                        Simu yako imebadili MAC Address na umekatika?
+                    </p>
+                    <button type="button" onclick="document.getElementById('recover-section').style.display='block'; this.style.display='none';" class="btn-submit" style="background-color: transparent; border: 1px solid var(--info-text); color: var(--info-text); margin-top: 0; padding: 0.5rem;">
+                        Rudisha Kifurushi Chako
+                    </button>
+                    
+                    <div id="recover-section" style="display: {{ $errors->has('recover') ? 'block' : 'none' }}; margin-top: 1rem;">
+                        <input type="tel" name="phone_recover" id="phone_recover" placeholder="Weka Namba (mf. 0712345678)" class="form-control" style="margin-bottom: 0.5rem;" oninput="document.getElementById('phone').value = this.value;">
+                        <button type="submit" formnovalidate formaction="{{ route('hotspot.recover_package') }}" formmethod="POST" class="btn-submit" style="background-color: var(--info-text); margin-top: 0; padding: 0.5rem;">Thibitisha Namba</button>
+                        @error('recover')
+                            <div style="margin-top: 0.5rem; color: var(--error); font-weight: bold; font-size: 0.875rem;">{{ $message }}</div>
+                        @enderror
+                    </div>
+                </div>
                 @endif
 
                 <div class="form-group" style="margin-bottom: 1.5rem;">
