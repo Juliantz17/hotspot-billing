@@ -13,8 +13,93 @@ class HotspotController extends Controller
     {
         $mac = $request->query('mac', '00:00:00:00:00:00'); 
         $ip = $request->query('ip', '');
+        
+        $activeTxn = null;
+        if ($mac !== '00:00:00:00:00:00') {
+            $activeTxn = DB::table('hotspot_transactions')
+                ->where('mac_address', $mac)
+                ->where('status', 'SUCCESS')
+                ->where('expires_at', '>', now())
+                ->latest()
+                ->first();
+        }
+
         $packages = \App\Models\Package::where('is_active', true)->get();
-        return view('checkout', compact('mac', 'ip', 'packages'));
+        return view('checkout', compact('mac', 'ip', 'packages', 'activeTxn'));
+    }
+
+    public function reconnectUser(Request $request)
+    {
+        $mac = $request->input('mac');
+        $ip = $request->input('ip');
+
+        $activeTxn = DB::table('hotspot_transactions')
+            ->where('mac_address', $mac)
+            ->where('status', 'SUCCESS')
+            ->where('expires_at', '>', now())
+            ->latest()
+            ->first();
+
+        if (!$activeTxn) {
+            return back()->withErrors(['reconnect' => 'Hakuna kifurushi kinachoendelea kwa simu hii.']);
+        }
+
+        try {
+            $config = (new \RouterOS\Config())
+                ->set('host', env('MIKROTIK_HOST'))
+                ->set('user', env('MIKROTIK_USER'))
+                ->set('pass', env('MIKROTIK_PASS'))
+                ->set('port', 8728);
+
+            $routerClient = new \RouterOS\Client($config);
+
+            $remainingMinutes = now()->diffInMinutes($activeTxn->expires_at);
+            if ($remainingMinutes < 1) {
+                return back()->withErrors(['reconnect' => 'Kifurushi chako kimeisha.']);
+            }
+            
+            // Remove existing user to avoid duplicate errors
+            try {
+                $users = $routerClient->query(['/ip/hotspot/user/print', '?name=' . $mac])->read();
+                foreach ($users as $u) {
+                    $routerClient->query(['/ip/hotspot/user/remove', '=.id=' . $u['.id']])->read();
+                }
+            } catch (\Exception $e) {}
+
+            $query = [
+                '/ip/hotspot/user/add',
+                '=name=' . $mac,
+                '=password=' . $mac,
+                '=mac-address=' . $mac,
+                '=limit-uptime=' . $remainingMinutes . 'm',
+                '=comment=Reconnect Txn ' . $activeTxn->transaction_id
+            ];
+
+            if (!empty($activeTxn->speed_limit)) {
+                $query[] = '=rate-limit=' . $activeTxn->speed_limit;
+            }
+
+            $routerClient->query($query)->read();
+
+            // Try active login
+            if (!empty($ip)) {
+                try {
+                    $routerClient->query([
+                        '/ip/hotspot/active/login',
+                        '=user=' . $mac,
+                        '=password=' . $mac,
+                        '=ip=' . $ip,
+                        '=mac-address=' . $mac
+                    ])->read();
+                } catch (\Exception $e) {}
+            }
+
+            return back()->with('success', 'Umefanikiwa kuunganishwa tena. Unaweza kuendelea kutumia intaneti.');
+
+        } catch (\Exception $e) {
+            Log::error("User reconnect failed: " . $e->getMessage());
+            return back()->withErrors(['reconnect' => 'Imeshindwa kuunganisha kwenye router.']);
+        }
     }
 
     public function showWaiting($txn)

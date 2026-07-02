@@ -234,6 +234,21 @@
                 <input type="hidden" name="mac" value="{{ $mac }}">
                 <input type="hidden" name="ip" value="{{ $ip ?? '' }}">
 
+                @if(isset($activeTxn))
+                <div style="background-color: var(--success-bg); border: 1px solid #86efac; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; text-align: center;">
+                    <h3 style="color: var(--success-text); margin-bottom: 0.5rem; font-weight: 600;">Karibu Tena!</h3>
+                    <p style="font-size: 0.875rem; color: var(--text-main); margin-bottom: 1rem;">
+                        Una kifurushi kinachoendelea ambacho kitaisha muda wake tarehe {{ \Carbon\Carbon::parse($activeTxn->expires_at)->format('d M Y, H:i') }}.
+                    </p>
+                    <button type="submit" formaction="{{ route('hotspot.reconnect_user') }}" formmethod="POST" class="btn-submit" style="background-color: var(--success-text); margin-top: 0;">Unganisha Tena Bure</button>
+                    @if(session('success'))
+                        <div style="margin-top: 0.5rem; color: var(--success-text); font-weight: bold;">{{ session('success') }}</div>
+                    @endif
+                    @error('reconnect')
+                        <div style="margin-top: 0.5rem; color: var(--error); font-weight: bold; font-size: 0.875rem;">{{ $message }}</div>
+                    @enderror
+                </div>
+                @endif
 
                 <div class="form-group" style="margin-bottom: 1.5rem;">
                     <label class="form-label" style="margin-bottom: 0.75rem;">Chagua Kifurushi</label>
