@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\HotspotController;
+use App\Http\Controllers\AdminController;
 
 // The URL customers are dropped onto from the MikroTik network
 Route::get('/checkout', [HotspotController::class, 'showCheckout'])->name('hotspot.checkout');
