@@ -41,7 +41,9 @@
         .container {
             width: 100%;
             display: flex;
-            justify-content: center;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.5rem;
         }
 
         .card {
@@ -199,6 +201,18 @@
             margin-top: 0.375rem;
             display: block;
         }
+
+        @media (max-width: 480px) {
+            .card {
+                padding: 1.5rem 1rem;
+            }
+            .header h1 {
+                font-size: 1.25rem;
+            }
+            .package-card {
+                padding: 0.75rem;
+            }
+        }
     </style>
 </head>
 <body>
@@ -260,6 +274,16 @@
                     Lipia Uunganishwe
                 </button>
             </form>
+        </div>
+
+        <div style="text-align: center; color: var(--text-muted); font-size: 0.875rem;">
+            <p>Unahitaji msaada? Piga simu huduma kwa wateja:</p>
+            <a href="tel:+255712402948" style="display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; margin-top: 0.5rem; color: var(--primary); font-weight: bold; text-decoration: none; background: #e2e8f0; padding: 0.5rem 1rem; border-radius: 9999px; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#cbd5e1'" onmouseout="this.style.backgroundColor='#e2e8f0'">
+                <svg style="width: 16px; height: 16px;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M2 3.5A1.5 1.5 0 0 1 3.5 2h1.148a1.5 1.5 0 0 1 1.465 1.175l.716 3.223a1.5 1.5 0 0 1-1.052 1.767l-.933.267c-.41.117-.643.555-.48.95a11.542 11.542 0 0 0 6.254 6.254c.395.163.833-.07.95-.48l.267-.933a1.5 1.5 0 0 1 1.767-1.052l3.223.716A1.5 1.5 0 0 1 18 15.352V16.5a1.5 1.5 0 0 1-1.5 1.5H15c-1.149 0-2.263-.15-3.326-.43A13.022 13.022 0 0 1 2.43 8.326 13.019 13.019 0 0 1 2 5V3.5Z" clip-rule="evenodd" />
+                </svg>
+                +255 712 402 948
+            </a>
         </div>
     </div>
 
