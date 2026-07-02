@@ -62,7 +62,7 @@ class AdminController extends Controller
             return back()->withErrors(['error' => 'Can only extend active (SUCCESS) transactions.']);
         }
 
-        $newExpiry = Carbon::parse($txn->expires_at)->addHours($request->extend_hours);
+        $newExpiry = Carbon::parse($txn->expires_at)->addHours((float) $request->extend_hours);
 
         DB::table('hotspot_transactions')->where('id', $id)->update([
             'expires_at' => $newExpiry,
