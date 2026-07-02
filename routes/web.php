@@ -12,6 +12,9 @@ Route::post('/process-payment', [HotspotController::class, 'processPayment'])->n
 // Waiting page
 Route::get('/waiting/{txn}', [HotspotController::class, 'showWaiting'])->name('hotspot.waiting');
 
+// Resume Session
+Route::post('/resume-session', [HotspotController::class, 'resumeSession'])->name('hotspot.resume');
+
 // Webhook for Selcom Payment confirmation
 Route::post('/webhook/selcom', [HotspotController::class, 'handleWebhook'])->name('webhook.selcom');
 

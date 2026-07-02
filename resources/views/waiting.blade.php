@@ -207,6 +207,11 @@
         @if($status === 'SUCCESS')
         <div class="status-box status-success">
             <span>Malipo Yamekamilika! Tunakuunganisha...</span>
+            <div style="margin-top: 10px; padding: 10px; background: #fff; border: 2px dashed var(--success-text); border-radius: 6px; color: var(--text-main); width: 100%;">
+                <strong style="font-size: 0.8rem;">PIN YAKO YA SIRI:</strong>
+                <div style="font-size: 1.5rem; letter-spacing: 2px; color: var(--primary); font-weight: bold; margin: 5px 0;">{{ $pin }}</div>
+                <small style="display:block; font-size: 0.7rem; color: var(--text-muted); line-height: 1.3;">Tafadhali ihifadhi (Screenshot). Uki-disconnect, utatumia namba ya simu na PIN hii kurejesha internet yako.</small>
+            </div>
         </div>
         @elseif($status === 'FAILED')
         <div class="status-box status-failed">

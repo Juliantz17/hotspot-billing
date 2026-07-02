@@ -41,7 +41,9 @@
         .container {
             width: 100%;
             display: flex;
-            justify-content: center;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.5rem;
         }
 
         .card {
@@ -204,6 +206,17 @@
 <body>
 
     <div class="container">
+        @if(session('success'))
+            <div style="width: 100%; max-width: 420px; background: var(--success-bg); color: var(--success-text); padding: 1rem; border-radius: 8px; border: 1px solid #bbf7d0; text-align: center; font-size: 0.875rem;">
+                {{ session('success') }}
+            </div>
+        @endif
+        @if($errors->has('resume'))
+            <div style="width: 100%; max-width: 420px; background: var(--danger-bg); color: var(--danger-text); padding: 1rem; border-radius: 8px; border: 1px solid #fecaca; text-align: center; font-size: 0.875rem;">
+                {{ $errors->first('resume') }}
+            </div>
+        @endif
+
         <div class="card">
             <div class="header">
                 <div style="display: flex; justify-content: center; margin-bottom: 1rem;">
@@ -258,6 +271,34 @@
 
                 <button type="submit" id="submit-btn" class="btn-submit">
                     Lipia Uunganishwe
+                </button>
+            </form>
+        </div>
+
+        <!-- Resume Session Card -->
+        <div class="card" style="padding: 1.5rem 2rem;">
+            <div class="header" style="margin-bottom: 1.5rem;">
+                <h2 style="font-size: 1.125rem; font-weight: 600; color: var(--primary);">Umeshalipia Kifurushi?</h2>
+                <p style="font-size: 0.75rem; margin-top: 0.25rem;">Weka namba ya simu na PIN yako ya siri kurejesha internet yako.</p>
+            </div>
+            
+            <form action="{{ route('hotspot.resume') }}" method="POST" id="resume-form" onsubmit="document.getElementById('resume-submit-btn').disabled = true; document.getElementById('resume-submit-btn').innerText = 'Tafadhali subiri...';">
+                @csrf
+                <input type="hidden" name="mac" value="{{ $mac }}">
+                <input type="hidden" name="ip" value="{{ $ip ?? '' }}">
+                
+                <div class="form-group">
+                    <label for="resume_phone" class="form-label">Namba ya Simu</label>
+                    <input type="tel" name="phone" id="resume_phone" placeholder="mf. 0712345678" required class="form-control">
+                </div>
+
+                <div class="form-group">
+                    <label for="pin" class="form-label">PIN yako ya Siri</label>
+                    <input type="text" name="pin" id="pin" placeholder="mf. 123456" maxlength="6" required class="form-control" style="letter-spacing: 2px; text-align: center; font-weight: bold;">
+                </div>
+
+                <button type="submit" id="resume-submit-btn" class="btn-submit" style="background-color: var(--text-muted);">
+                    Rejesha Internet
                 </button>
             </form>
         </div>
