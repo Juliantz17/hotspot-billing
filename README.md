@@ -53,6 +53,15 @@ Before you dive in, you'll need a few things:
    php artisan queue:listen
    ```
 
+## 🔐 Admin Login (Keep it Simple!)
+Since I built this as a simple, straightforward project, there isn't a complex admin user database. To access the admin dashboard, just set your desired username and password in the `.env` file:
+```env
+ADMIN_USER=your_admin_username
+ADMIN_PASS=your_admin_password
+```
+
+
+
 6. **Migrate the database:**
    ```bash
    php artisan migrate
@@ -70,6 +79,10 @@ I built this as a side project for fun. It comes with zero warranties. If it acc
 ## 🤝 Contributing
 
 Found a bug? Want to add a feature? Feel free to submit a Pull Request. If you can make this "funny project" even better, I'm all for it.
+
+## 📬 Contact
+
+Got questions or just want to chat about this project? You can reach me at **Julianeukerio@gmail.com**.
 
 ## 📜 License
 
