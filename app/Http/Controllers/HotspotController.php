@@ -337,16 +337,29 @@ class HotspotController extends Controller
                 ->set('port', 8728);
             $routerClient = new \RouterOS\Client($config);
 
-            // Remove from active
-            $activeUsers = $routerClient->query(['/ip/hotspot/active/print', '?user=' . $transaction->mac_address])->read();
-            foreach ($activeUsers as $user) {
-                $routerClient->query(['/ip/hotspot/active/remove', '=.id=' . $user['.id']])->read();
-            }
+            $oldMacLower = strtolower($transaction->mac_address);
+            $oldMacUpper = strtoupper($transaction->mac_address);
 
-            // Remove from users (so they can't log in again)
-            $hotspotUsers = $routerClient->query(['/ip/hotspot/user/print', '?name=' . $transaction->mac_address])->read();
-            foreach ($hotspotUsers as $user) {
-                $routerClient->query(['/ip/hotspot/user/remove', '=.id=' . $user['.id']])->read();
+            $macsToClear = [$oldMacLower, $oldMacUpper];
+
+            foreach ($macsToClear as $macTarget) {
+                // Remove from active
+                $activeUsers = $routerClient->query(['/ip/hotspot/active/print', '?mac-address=' . $macTarget])->read();
+                foreach ($activeUsers as $user) {
+                    $routerClient->query(['/ip/hotspot/active/remove', '=.id=' . $user['.id']])->read();
+                }
+
+                // Remove from users
+                $hotspotUsers = $routerClient->query(['/ip/hotspot/user/print', '?name=' . $macTarget])->read();
+                foreach ($hotspotUsers as $user) {
+                    $routerClient->query(['/ip/hotspot/user/remove', '=.id=' . $user['.id']])->read();
+                }
+
+                // Remove from cookies
+                $cookies = $routerClient->query(['/ip/hotspot/cookie/print', '?mac-address=' . $macTarget])->read();
+                foreach ($cookies as $cookie) {
+                    $routerClient->query(['/ip/hotspot/cookie/remove', '=.id=' . $cookie['.id']])->read();
+                }
             }
 
         } catch (\Exception $e) {
