@@ -82,8 +82,7 @@ class HotspotController extends Controller
             'txn' => $txn, 
             'status' => $transaction->status,
             'mac' => $transaction->mac_address,
-            'ip' => $transaction->ip_address,
-            'pin' => $transaction->pin
+            'ip' => $transaction->ip_address
         ]);
     }
 
@@ -108,7 +107,6 @@ class HotspotController extends Controller
         
         $formattedPhone = '255' . substr($request->phone, 1);
         $transactionId = 'HOTSPOT_' . time();
-        $pin = sprintf("%06d", mt_rand(1, 999999));
 
         // 1. Log the transaction as PENDING locally
         DB::table('hotspot_transactions')->insert([
@@ -119,7 +117,6 @@ class HotspotController extends Controller
             'amount' => $amount,
             'duration_minutes' => $duration,
             'speed_limit' => $package->speed_limit,
-            'pin' => $pin,
             'status' => 'PENDING',
             'created_at' => now(),
             'updated_at' => now(),
@@ -300,88 +297,4 @@ class HotspotController extends Controller
         return response()->json(['status' => 'SUCCESS', 'message' => 'Received'], 200);
     }
 
-    public function resumeSession(Request $request)
-    {
-        $request->validate([
-            'phone' => 'required|regex:/^0[67][0-9]{8}$/', 
-            'pin' => 'required|string|size:6',
-            'mac' => 'required'
-        ]);
-
-        $formattedPhone = '255' . substr($request->phone, 1);
-
-        $transaction = DB::table('hotspot_transactions')
-            ->where('phone_number', $formattedPhone)
-            ->where('pin', $request->pin)
-            ->where('status', 'SUCCESS')
-            ->where('expires_at', '>', now())
-            ->latest()
-            ->first();
-
-        if (!$transaction) {
-            return back()->withErrors(['resume' => 'Namba ya simu au PIN si sahihi, au kifurushi chako kimekwisha muda.']);
-        }
-
-        $remainingMinutes = now()->diffInMinutes($transaction->expires_at);
-
-        if ($remainingMinutes < 1) {
-            return back()->withErrors(['resume' => 'Kifurushi chako kimekwisha muda.']);
-        }
-
-        // KICK OLD MAC FROM ROUTER
-        try {
-            $config = (new \RouterOS\Config())
-                ->set('host', env('MIKROTIK_HOST'))
-                ->set('user', env('MIKROTIK_USER'))
-                ->set('pass', env('MIKROTIK_PASS'))
-                ->set('port', 8728);
-            $routerClient = new \RouterOS\Client($config);
-
-            $oldMacLower = strtolower($transaction->mac_address);
-            $oldMacUpper = strtoupper($transaction->mac_address);
-
-            $macsToClear = [$oldMacLower, $oldMacUpper];
-
-            foreach ($macsToClear as $macTarget) {
-                // Remove from active
-                $activeUsers = $routerClient->query(['/ip/hotspot/active/print', '?mac-address=' . $macTarget])->read();
-                foreach ($activeUsers as $user) {
-                    $routerClient->query(['/ip/hotspot/active/remove', '=.id=' . $user['.id']])->read();
-                }
-
-                // Remove from users
-                $hotspotUsers = $routerClient->query(['/ip/hotspot/user/print', '?name=' . $macTarget])->read();
-                foreach ($hotspotUsers as $user) {
-                    $routerClient->query(['/ip/hotspot/user/remove', '=.id=' . $user['.id']])->read();
-                }
-
-                // Remove from cookies
-                $cookies = $routerClient->query(['/ip/hotspot/cookie/print', '?mac-address=' . $macTarget])->read();
-                foreach ($cookies as $cookie) {
-                    $routerClient->query(['/ip/hotspot/cookie/remove', '=.id=' . $cookie['.id']])->read();
-                }
-            }
-
-        } catch (\Exception $e) {
-            Log::warning("Could not kick old MAC {$transaction->mac_address} during resume.", ['error' => $e->getMessage()]);
-        }
-
-        // Update DB
-        DB::table('hotspot_transactions')
-            ->where('id', $transaction->id)
-            ->update([
-                'mac_address' => $request->mac,
-                'ip_address' => $request->ip,
-                'updated_at' => now()
-            ]);
-
-        // Trigger provision for NEW mac
-        $transaction->duration_minutes = $remainingMinutes;
-        $transaction->mac_address = $request->mac;
-        $transaction->ip_address = $request->ip;
-
-        event(new \App\Events\WifiPaymentSuccess($transaction));
-
-        return back()->with('success', 'Umefanikiwa kurejesha kifurushi chako! Unaweza kuendelea kutumia intaneti.');
-    }
 }
