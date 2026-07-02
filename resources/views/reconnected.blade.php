@@ -67,5 +67,16 @@
         <p>Muda huu unaweza kuendelea kutumia intaneti.</p>
         <a href="https://www.google.com" class="btn">Endelea Kutumia Intaneti</a>
     </div>
+
+    <script>
+        // Automatically redirect to google so the device's Captive Portal detects internet and closes
+        setTimeout(function() {
+            window.location.href = 'http://www.google.com/generate_204';
+        }, 2000);
+        
+        setTimeout(function() {
+            window.location.href = 'https://www.google.com';
+        }, 3500);
+    </script>
 </body>
 </html>
