@@ -77,6 +77,13 @@ class ProvisionHotspotUser implements ShouldQueue
             // Force the router to instantly log them in so they don't have to disconnect/reconnect
             if (!empty($session->ip_address)) {
                 try {
+                    try {
+                        $activeSessions = $routerClient->query(['/ip/hotspot/active/print', '?mac-address=' . $session->mac_address])->read();
+                        foreach ($activeSessions as $as) {
+                            $routerClient->query(['/ip/hotspot/active/remove', '=.id=' . $as['.id']])->read();
+                        }
+                    } catch (\Exception $e) {}
+
                     $routerClient->query([
                         '/ip/hotspot/active/login',
                         '=user=' . $session->mac_address,

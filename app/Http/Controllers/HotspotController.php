@@ -57,6 +57,14 @@ class HotspotController extends Controller
 
                         $routerClient->query($query)->read();
 
+                        // Clear any existing active session to prevent "already active" errors
+                        try {
+                            $activeSessions = $routerClient->query(['/ip/hotspot/active/print', '?mac-address=' . $mac])->read();
+                            foreach ($activeSessions as $as) {
+                                $routerClient->query(['/ip/hotspot/active/remove', '=.id=' . $as['.id']])->read();
+                            }
+                        } catch (\Exception $e) {}
+
                         if (!empty($ip)) {
                             try {
                                 $routerClient->query([
@@ -66,7 +74,9 @@ class HotspotController extends Controller
                                     '=ip=' . $ip,
                                     '=mac-address=' . $mac
                                 ])->read();
-                            } catch (\Exception $e) {}
+                            } catch (\Exception $e) {
+                                Log::error("MikroTik active login failed: " . $e->getMessage());
+                            }
                         }
 
                         // Seamlessly return a success message instead of checkout
