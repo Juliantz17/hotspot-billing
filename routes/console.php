@@ -9,5 +9,5 @@ Artisan::command('inspire', function () {
 
 use Illuminate\Support\Facades\Schedule;
 
-// The expired hotspot users cleanup is now handled automatically by MikroTik limit-uptime
-// Schedule::command('hotspot:clean-expired')->everyMinute();
+// We are using absolute real-world expiration via cron now, not limit-uptime
+Schedule::command('hotspot:clean-expired')->everyMinute();

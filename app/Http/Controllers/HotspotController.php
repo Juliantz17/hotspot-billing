@@ -47,7 +47,6 @@ class HotspotController extends Controller
                             '=name=' . $mac,
                             '=password=' . $mac,
                             '=mac-address=' . $mac,
-                            '=limit-uptime=' . $remainingMinutes . 'm',
                             '=comment=Auto-Reconnect Txn ' . $activeTxn->transaction_id
                         ];
 
@@ -138,7 +137,6 @@ class HotspotController extends Controller
                 '=name=' . $mac,
                 '=password=' . $mac,
                 '=mac-address=' . $mac,
-                '=limit-uptime=' . $remainingMinutes . 'm',
                 '=comment=Reconnect Txn ' . $activeTxn->transaction_id
             ];
 
@@ -239,7 +237,6 @@ class HotspotController extends Controller
                 '=name=' . $newMac,
                 '=password=' . $newMac,
                 '=mac-address=' . $newMac,
-                '=limit-uptime=' . $remainingMinutes . 'm',
                 '=comment=Recovered Txn ' . $activeTxn->transaction_id
             ];
 

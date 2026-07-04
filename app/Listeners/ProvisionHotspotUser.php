@@ -64,7 +64,6 @@ class ProvisionHotspotUser implements ShouldQueue
                 '=name=' . $session->mac_address,
                 '=password=' . $session->mac_address,
                 '=mac-address=' . $session->mac_address,
-                '=limit-uptime=' . $duration,
                 '=comment=Selcom Txn ' . $session->transaction_id
             ];
 

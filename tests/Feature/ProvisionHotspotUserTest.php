@@ -40,7 +40,6 @@ class ProvisionHotspotUserTest extends TestCase
                 ->withArgs(function ($query) use ($transaction) {
                     if ($query[0] !== '/ip/hotspot/user/add') return false;
                     if (!in_array('=name=' . $transaction->mac_address, $query)) return false;
-                    if (!in_array('=limit-uptime=60m', $query)) return false;
                     
                     return true;
                 })
