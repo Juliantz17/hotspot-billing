@@ -26,13 +26,7 @@ class CleanExpiredHotspotUsers extends Command
         }
 
         try {
-            $config = (new Config())
-                ->set('host', config('services.mikrotik.host'))
-                ->set('user', config('services.mikrotik.user'))
-                ->set('pass', config('services.mikrotik.pass'))
-                ->set('port', 8728);
-
-            $routerClient = new RouterClient($config);
+            $routerClient = \App\Services\MikrotikService::getClient();
 
             foreach ($expiredSessions as $session) {
                 // Find the actual user account on Mikrotik

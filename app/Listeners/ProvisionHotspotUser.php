@@ -48,13 +48,8 @@ class ProvisionHotspotUser implements ShouldQueue
         $session = $event->transaction;
 
         try {
-            $config = (new Config())
-                ->set('host', config('services.mikrotik.host'))
-                ->set('user', config('services.mikrotik.user'))
-                ->set('pass', config('services.mikrotik.pass'))
-                ->set('port', 8728);
-            // Resolve from the Laravel container so we can mock it in tests
-            $routerClient = app(RouterClient::class, ['config' => $config]);
+            // Use the MikrotikService which resolves from the container or creates a new client with retry logic
+            $routerClient = \App\Services\MikrotikService::getClient();
 
             // Create a hotspot user on MikroTik with an uptime limit
             $duration = $session->duration_minutes . 'm';

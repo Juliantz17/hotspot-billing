@@ -25,13 +25,7 @@ class HotspotController extends Controller
             // Auto-reconnect seamlessly if they are active
             if ($activeTxn && !$request->has('manual')) {
                 try {
-                    $config = (new \RouterOS\Config())
-                        ->set('host', config('services.mikrotik.host'))
-                        ->set('user', config('services.mikrotik.user'))
-                        ->set('pass', config('services.mikrotik.pass'))
-                        ->set('port', 8728);
-
-                    $routerClient = new \RouterOS\Client($config);
+                    $routerClient = \App\Services\MikrotikService::getClient();
                     $remainingMinutes = now()->diffInMinutes($activeTxn->expires_at);
 
                     if ($remainingMinutes > 0) {
@@ -111,13 +105,7 @@ class HotspotController extends Controller
         }
 
         try {
-            $config = (new \RouterOS\Config())
-                ->set('host', config('services.mikrotik.host'))
-                ->set('user', config('services.mikrotik.user'))
-                ->set('pass', config('services.mikrotik.pass'))
-                ->set('port', 8728);
-
-            $routerClient = new \RouterOS\Client($config);
+            $routerClient = \App\Services\MikrotikService::getClient();
 
             $remainingMinutes = now()->diffInMinutes($activeTxn->expires_at);
             if ($remainingMinutes < 1) {
@@ -191,13 +179,7 @@ class HotspotController extends Controller
         }
 
         try {
-            $config = (new \RouterOS\Config())
-                ->set('host', config('services.mikrotik.host'))
-                ->set('user', config('services.mikrotik.user'))
-                ->set('pass', config('services.mikrotik.pass'))
-                ->set('port', 8728);
-
-            $routerClient = new \RouterOS\Client($config);
+            $routerClient = \App\Services\MikrotikService::getClient();
 
             $remainingMinutes = now()->diffInMinutes($activeTxn->expires_at);
             if ($remainingMinutes < 1) {
