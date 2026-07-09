@@ -15,8 +15,9 @@
             --primary-hover: #1e293b;
             --focus-ring: #cbd5e1;
             --error: #ef4444;
-            --info-bg: #f8fafc;
-            --info-border: #e2e8f0;
+            --info-bg: #eff6ff;
+            --info-border: #bfdbfe;
+            --info-text: #1d4ed8;
             --success-bg: #f0fdf4;
             --success-text: #16a34a;
         }
