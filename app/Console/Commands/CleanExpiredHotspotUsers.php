@@ -43,6 +43,19 @@ class CleanExpiredHotspotUsers extends Command
                     ])->read();
                 }
 
+                // Remove IP-binding so they get redirected to portal again
+                $bindings = $routerClient->query([
+                    '/ip/hotspot/ip-binding/print',
+                    '?mac-address=' . $session->mac_address
+                ])->read();
+
+                if (!empty($bindings)) {
+                    $routerClient->query([
+                        '/ip/hotspot/ip-binding/remove',
+                        '=.id=' . $bindings[0]['.id']
+                    ])->read();
+                }
+
                 // Also kick them out if they are currently logged in
                 $active = $routerClient->query([
                     '/ip/hotspot/active/print',

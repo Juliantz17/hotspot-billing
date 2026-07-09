@@ -72,6 +72,20 @@ class HotspotController extends Controller
                             }
                         }
 
+                        // Add IP binding for seamless reconnect
+                        try {
+                            $bindings = $routerClient->query(['/ip/hotspot/ip-binding/print', '?mac-address=' . $mac])->read();
+                            foreach ($bindings as $b) {
+                                $routerClient->query(['/ip/hotspot/ip-binding/remove', '=.id=' . $b['.id']])->read();
+                            }
+                            $routerClient->query([
+                                '/ip/hotspot/ip-binding/add',
+                                '=mac-address=' . $mac,
+                                '=type=bypassed',
+                                '=comment=Auto-Reconnect Txn ' . $activeTxn->transaction_id
+                            ])->read();
+                        } catch (\Exception $e) {}
+
                         // Seamlessly return a success message instead of checkout
                         return response(view('reconnected', [
                             'expires_at' => $activeTxn->expires_at
@@ -147,6 +161,20 @@ class HotspotController extends Controller
                 } catch (\Exception $e) {}
             }
 
+            // Add IP binding for seamless reconnect
+            try {
+                $bindings = $routerClient->query(['/ip/hotspot/ip-binding/print', '?mac-address=' . $mac])->read();
+                foreach ($bindings as $b) {
+                    $routerClient->query(['/ip/hotspot/ip-binding/remove', '=.id=' . $b['.id']])->read();
+                }
+                $routerClient->query([
+                    '/ip/hotspot/ip-binding/add',
+                    '=mac-address=' . $mac,
+                    '=type=bypassed',
+                    '=comment=Reconnect Txn ' . $activeTxn->transaction_id
+                ])->read();
+            } catch (\Exception $e) {}
+
             return back()->with('success', 'Umefanikiwa kuunganishwa tena. Unaweza kuendelea kutumia intaneti.');
 
         } catch (\Exception $e) {
@@ -199,6 +227,11 @@ class HotspotController extends Controller
                 foreach ($users as $u) {
                     $routerClient->query(['/ip/hotspot/user/remove', '=.id=' . $u['.id']])->read();
                 }
+                // Remove from bindings
+                $bindings = $routerClient->query(['/ip/hotspot/ip-binding/print', '?mac-address=' . $oldMac])->read();
+                foreach ($bindings as $b) {
+                    $routerClient->query(['/ip/hotspot/ip-binding/remove', '=.id=' . $b['.id']])->read();
+                }
             } catch (\Exception $e) {}
 
             // 2. Clear any existing session for the NEW MAC just in case
@@ -249,6 +282,20 @@ class HotspotController extends Controller
                     ])->read();
                 } catch (\Exception $e) {}
             }
+
+            // 6. Add IP binding for new MAC
+            try {
+                $bindings = $routerClient->query(['/ip/hotspot/ip-binding/print', '?mac-address=' . $newMac])->read();
+                foreach ($bindings as $b) {
+                    $routerClient->query(['/ip/hotspot/ip-binding/remove', '=.id=' . $b['.id']])->read();
+                }
+                $routerClient->query([
+                    '/ip/hotspot/ip-binding/add',
+                    '=mac-address=' . $newMac,
+                    '=type=bypassed',
+                    '=comment=Recovered Txn ' . $activeTxn->transaction_id
+                ])->read();
+            } catch (\Exception $e) {}
 
             // Return success view
             return response(view('reconnected', [

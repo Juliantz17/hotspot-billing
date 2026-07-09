@@ -68,7 +68,7 @@ class ProvisionHotspotUser implements ShouldQueue
 
             $routerClient->query($query)->read();
 
-            // Force the router to instantly log them in so they don't have to disconnect/reconnect
+            // Force the router to instantly log them in
             if (!empty($session->ip_address)) {
                 try {
                     try {
@@ -86,8 +86,24 @@ class ProvisionHotspotUser implements ShouldQueue
                         '=mac-address=' . $session->mac_address
                     ])->read();
                 } catch (\Exception $e) {
-                    Log::warning("Could not auto-login MAC {$session->mac_address}. They must reconnect manually.", ['error' => $e->getMessage()]);
+                    Log::warning("Could not auto-login MAC {$session->mac_address}.", ['error' => $e->getMessage()]);
                 }
+            }
+
+            // ADD IP-BINDING TO ENSURE SEAMLESS RECONNECT (Bypasses Portal entirely)
+            try {
+                $bindings = $routerClient->query(['/ip/hotspot/ip-binding/print', '?mac-address=' . $session->mac_address])->read();
+                foreach ($bindings as $b) {
+                    $routerClient->query(['/ip/hotspot/ip-binding/remove', '=.id=' . $b['.id']])->read();
+                }
+                $routerClient->query([
+                    '/ip/hotspot/ip-binding/add',
+                    '=mac-address=' . $session->mac_address,
+                    '=type=bypassed',
+                    '=comment=Selcom Txn ' . $session->transaction_id
+                ])->read();
+            } catch (\Exception $e) {
+                Log::warning("Could not add ip-binding for MAC {$session->mac_address}.", ['error' => $e->getMessage()]);
             }
 
             Log::info("Provisioned user on Mikrotik for Txn: {$session->transaction_id}, MAC: {$session->mac_address}");
