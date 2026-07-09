@@ -102,8 +102,24 @@ class ProvisionHotspotUser implements ShouldQueue
                     '=type=bypassed',
                     '=comment=Selcom Txn ' . $session->transaction_id
                 ])->read();
+
+                // Enforce speed limit for bypassed users using a Simple Queue
+                if (!empty($session->speed_limit) && !empty($session->ip_address)) {
+                    $queues = $routerClient->query(['/queue/simple/print', '?name=RateLimit_' . $session->mac_address])->read();
+                    foreach ($queues as $q) {
+                        $routerClient->query(['/queue/simple/remove', '=.id=' . $q['.id']])->read();
+                    }
+                    $routerClient->query([
+                        '/queue/simple/add',
+                        '=name=RateLimit_' . $session->mac_address,
+                        '=target=' . $session->ip_address . '/32',
+                        '=max-limit=' . $session->speed_limit,
+                        '=comment=Selcom Txn ' . $session->transaction_id
+                    ])->read();
+                }
+
             } catch (\Exception $e) {
-                Log::warning("Could not add ip-binding for MAC {$session->mac_address}.", ['error' => $e->getMessage()]);
+                Log::warning("Could not add ip-binding or queue for MAC {$session->mac_address}.", ['error' => $e->getMessage()]);
             }
 
             Log::info("Provisioned user on Mikrotik for Txn: {$session->transaction_id}, MAC: {$session->mac_address}");

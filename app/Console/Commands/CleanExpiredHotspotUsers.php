@@ -56,6 +56,19 @@ class CleanExpiredHotspotUsers extends Command
                     ])->read();
                 }
 
+                // Remove Simple Queue
+                $queues = $routerClient->query([
+                    '/queue/simple/print',
+                    '?name=RateLimit_' . $session->mac_address
+                ])->read();
+
+                if (!empty($queues)) {
+                    $routerClient->query([
+                        '/queue/simple/remove',
+                        '=.id=' . $queues[0]['.id']
+                    ])->read();
+                }
+
                 // Also kick them out if they are currently logged in
                 $active = $routerClient->query([
                     '/ip/hotspot/active/print',

@@ -95,6 +95,18 @@ class AdminController extends Controller
                 ])->read();
             }
 
+            $queues = $routerClient->query([
+                '/queue/simple/print',
+                '?name=RateLimit_' . $txn->mac_address
+            ])->read();
+
+            if (!empty($queues)) {
+                $routerClient->query([
+                    '/queue/simple/remove',
+                    '=.id=' . $queues[0]['.id']
+                ])->read();
+            }
+
             DB::table('hotspot_transactions')->where('id', $id)->update([
                 'expires_at' => now(),
                 'updated_at' => now(),
@@ -170,6 +182,16 @@ class AdminController extends Controller
                 $cookies = $routerClient->query(['/ip/hotspot/cookie/print', '?mac-address=' . $macTarget])->read();
                 foreach ($cookies as $cookie) {
                     $routerClient->query(['/ip/hotspot/cookie/remove', '=.id=' . $cookie['.id']])->read();
+                }
+
+                $bindings = $routerClient->query(['/ip/hotspot/ip-binding/print', '?mac-address=' . $macTarget])->read();
+                foreach ($bindings as $b) {
+                    $routerClient->query(['/ip/hotspot/ip-binding/remove', '=.id=' . $b['.id']])->read();
+                }
+
+                $queues = $routerClient->query(['/queue/simple/print', '?name=RateLimit_' . $macTarget])->read();
+                foreach ($queues as $q) {
+                    $routerClient->query(['/queue/simple/remove', '=.id=' . $q['.id']])->read();
                 }
             }
         } catch (\Exception $e) {

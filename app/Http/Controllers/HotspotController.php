@@ -84,6 +84,20 @@ class HotspotController extends Controller
                                 '=type=bypassed',
                                 '=comment=Auto-Reconnect Txn ' . $activeTxn->transaction_id
                             ])->read();
+
+                            if (!empty($activeTxn->speed_limit) && !empty($ip)) {
+                                $queues = $routerClient->query(['/queue/simple/print', '?name=RateLimit_' . $mac])->read();
+                                foreach ($queues as $q) {
+                                    $routerClient->query(['/queue/simple/remove', '=.id=' . $q['.id']])->read();
+                                }
+                                $routerClient->query([
+                                    '/queue/simple/add',
+                                    '=name=RateLimit_' . $mac,
+                                    '=target=' . $ip . '/32',
+                                    '=max-limit=' . $activeTxn->speed_limit,
+                                    '=comment=Auto-Reconnect Txn ' . $activeTxn->transaction_id
+                                ])->read();
+                            }
                         } catch (\Exception $e) {}
 
                         // Seamlessly return a success message instead of checkout
@@ -173,6 +187,20 @@ class HotspotController extends Controller
                     '=type=bypassed',
                     '=comment=Reconnect Txn ' . $activeTxn->transaction_id
                 ])->read();
+
+                if (!empty($activeTxn->speed_limit) && !empty($ip)) {
+                    $queues = $routerClient->query(['/queue/simple/print', '?name=RateLimit_' . $mac])->read();
+                    foreach ($queues as $q) {
+                        $routerClient->query(['/queue/simple/remove', '=.id=' . $q['.id']])->read();
+                    }
+                    $routerClient->query([
+                        '/queue/simple/add',
+                        '=name=RateLimit_' . $mac,
+                        '=target=' . $ip . '/32',
+                        '=max-limit=' . $activeTxn->speed_limit,
+                        '=comment=Reconnect Txn ' . $activeTxn->transaction_id
+                    ])->read();
+                }
             } catch (\Exception $e) {}
 
             return back()->with('success', 'Umefanikiwa kuunganishwa tena. Unaweza kuendelea kutumia intaneti.');
@@ -231,6 +259,11 @@ class HotspotController extends Controller
                 $bindings = $routerClient->query(['/ip/hotspot/ip-binding/print', '?mac-address=' . $oldMac])->read();
                 foreach ($bindings as $b) {
                     $routerClient->query(['/ip/hotspot/ip-binding/remove', '=.id=' . $b['.id']])->read();
+                }
+                // Remove from queues
+                $queues = $routerClient->query(['/queue/simple/print', '?name=RateLimit_' . $oldMac])->read();
+                foreach ($queues as $q) {
+                    $routerClient->query(['/queue/simple/remove', '=.id=' . $q['.id']])->read();
                 }
             } catch (\Exception $e) {}
 
@@ -295,6 +328,20 @@ class HotspotController extends Controller
                     '=type=bypassed',
                     '=comment=Recovered Txn ' . $activeTxn->transaction_id
                 ])->read();
+
+                if (!empty($activeTxn->speed_limit) && !empty($ip)) {
+                    $queues = $routerClient->query(['/queue/simple/print', '?name=RateLimit_' . $newMac])->read();
+                    foreach ($queues as $q) {
+                        $routerClient->query(['/queue/simple/remove', '=.id=' . $q['.id']])->read();
+                    }
+                    $routerClient->query([
+                        '/queue/simple/add',
+                        '=name=RateLimit_' . $newMac,
+                        '=target=' . $ip . '/32',
+                        '=max-limit=' . $activeTxn->speed_limit,
+                        '=comment=Recovered Txn ' . $activeTxn->transaction_id
+                    ])->read();
+                }
             } catch (\Exception $e) {}
 
             // Return success view
