@@ -15,6 +15,19 @@ class HotspotController extends Controller
         $ip = $request->query('ip', '');
         
         if ($mac !== '00:00:00:00:00:00') {
+            try {
+                DB::table('checkout_visits')->insert([
+                    'mac_address' => $mac,
+                    'ip_address' => $ip,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            } catch (\Exception $e) {
+                Log::error("Failed to log checkout visit: " . $e->getMessage());
+            }
+        }
+        
+        if ($mac !== '00:00:00:00:00:00') {
             $activeTxn = DB::table('hotspot_transactions')
                 ->where('mac_address', $mac)
                 ->where('status', 'SUCCESS')

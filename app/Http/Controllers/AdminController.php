@@ -20,6 +20,19 @@ class AdminController extends Controller
         return view('admin.dashboard', compact('transactions'));
     }
 
+    public function analytics()
+    {
+        $visits = DB::table('checkout_visits')
+            ->select(
+                'checkout_visits.*',
+                DB::raw('(SELECT count(*) FROM hotspot_transactions WHERE hotspot_transactions.mac_address = checkout_visits.mac_address AND hotspot_transactions.status = "SUCCESS" AND hotspot_transactions.created_at >= checkout_visits.created_at) as paid_after')
+            )
+            ->orderBy('created_at', 'desc')
+            ->paginate(20);
+
+        return view('admin.analytics', compact('visits'));
+    }
+
     public function earnings(Request $request)
     {
         $filter = $request->query('filter', 'today');

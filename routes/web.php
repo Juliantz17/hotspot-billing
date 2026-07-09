@@ -27,6 +27,7 @@ Route::post('/admin/logout', [\App\Http\Controllers\AuthController::class, 'logo
 Route::middleware(['admin'])->prefix('admin')->group(function () {
     Route::get('/', [AdminController::class, 'index'])->name('admin.dashboard');
     Route::get('/earnings', [AdminController::class, 'earnings'])->name('admin.earnings');
+    Route::get('/analytics', [AdminController::class, 'analytics'])->name('admin.analytics');
     
     // User management
     Route::post('/transactions/{id}/extend', [AdminController::class, 'extend'])->name('admin.extend');
