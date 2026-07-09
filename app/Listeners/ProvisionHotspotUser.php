@@ -54,6 +54,14 @@ class ProvisionHotspotUser implements ShouldQueue
             // Create a hotspot user on MikroTik with an uptime limit
             $duration = $session->duration_minutes . 'm';
 
+            // Remove existing user to avoid "already exists" silent failures causing invalid password later
+            try {
+                $users = $routerClient->query(['/ip/hotspot/user/print', '?name=' . $session->mac_address])->read();
+                foreach ($users as $u) {
+                    $routerClient->query(['/ip/hotspot/user/remove', '=.id=' . $u['.id']])->read();
+                }
+            } catch (\Exception $e) {}
+
             $query = [
                 '/ip/hotspot/user/add',
                 '=name=' . $session->mac_address,
