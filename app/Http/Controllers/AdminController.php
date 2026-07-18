@@ -15,6 +15,7 @@ class AdminController extends Controller
     {
         $status = $request->query('status', 'all');
         $time = $request->query('time', 'all');
+        $search = $request->query('search', '');
 
         $query = DB::table('hotspot_transactions');
 
@@ -49,11 +50,20 @@ class AdminController extends Controller
             $query->whereMonth('created_at', Carbon::now()->subMonth()->month)->whereYear('created_at', Carbon::now()->subMonth()->year);
         }
 
+        // Apply search filter
+        if (!empty($search)) {
+            $query->where(function ($q) use ($search) {
+                $q->where('transaction_id', 'like', '%' . $search . '%')
+                  ->orWhere('phone_number', 'like', '%' . $search . '%')
+                  ->orWhere('mac_address', 'like', '%' . $search . '%');
+            });
+        }
+
         $transactions = $query->orderBy('created_at', 'desc')
             ->paginate(10)
-            ->appends(['status' => $status, 'time' => $time]);
+            ->appends(['status' => $status, 'time' => $time, 'search' => $search]);
 
-        return view('admin.dashboard', compact('transactions', 'status', 'time'));
+        return view('admin.dashboard', compact('transactions', 'status', 'time', 'search'));
     }
 
     public function analytics()
@@ -66,7 +76,63 @@ class AdminController extends Controller
             ->orderBy('created_at', 'desc')
             ->paginate(20);
 
-        return view('admin.analytics', compact('visits'));
+        // Compute summary metrics
+        $totalVisits = DB::table('checkout_visits')->count();
+        $uniqueVisits = DB::table('checkout_visits')->distinct('mac_address')->count('mac_address');
+        
+        $totalPaid = DB::table('hotspot_transactions')
+            ->where('status', 'SUCCESS')
+            ->count();
+        $uniquePaid = DB::table('hotspot_transactions')
+            ->where('status', 'SUCCESS')
+            ->distinct('mac_address')
+            ->count('mac_address');
+
+        $conversionRate = $uniqueVisits > 0 ? round(($uniquePaid / $uniqueVisits) * 100, 1) : 0;
+
+        // Daily visits for the last 7 days (unique MAC addresses)
+        $dailyVisits = DB::table('checkout_visits')
+            ->select(DB::raw('DATE(created_at) as date'), DB::raw('count(distinct mac_address) as count'))
+            ->where('created_at', '>=', Carbon::now()->subDays(6)->startOfDay())
+            ->groupBy('date')
+            ->get()
+            ->pluck('count', 'date')
+            ->toArray();
+
+        // Daily payments for the last 7 days (unique MAC addresses)
+        $dailyPayments = DB::table('hotspot_transactions')
+            ->select(DB::raw('DATE(created_at) as date'), DB::raw('count(distinct mac_address) as count'))
+            ->where('status', 'SUCCESS')
+            ->where('created_at', '>=', Carbon::now()->subDays(6)->startOfDay())
+            ->groupBy('date')
+            ->get()
+            ->pluck('count', 'date')
+            ->toArray();
+
+        $chartLabels = [];
+        $chartRates = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $date = Carbon::now()->subDays($i)->format('Y-m-d');
+            $label = Carbon::now()->subDays($i)->format('M d');
+            
+            $dayVisits = $dailyVisits[$date] ?? 0;
+            $dayPayments = $dailyPayments[$date] ?? 0;
+            $rate = $dayVisits > 0 ? round(($dayPayments / $dayVisits) * 100, 1) : 0;
+            
+            $chartLabels[] = $label;
+            $chartRates[] = $rate;
+        }
+
+        return view('admin.analytics', compact(
+            'visits', 
+            'totalVisits', 
+            'uniqueVisits', 
+            'totalPaid', 
+            'uniquePaid', 
+            'conversionRate',
+            'chartLabels',
+            'chartRates'
+        ));
     }
 
     public function earnings(Request $request)
@@ -268,5 +334,41 @@ class AdminController extends Controller
         event(new \App\Events\WifiPaymentSuccess($updatedTxn));
 
         return back()->with('success', 'User device reconnected successfully for ' . $remainingMinutes . ' minutes.');
+    }
+
+    public function activeSessions()
+    {
+        $activeSessions = [];
+        $error = null;
+        try {
+            $routerClient = \App\Services\MikrotikService::getClient();
+            $activeSessions = $routerClient->query('/ip/hotspot/active/print')->read();
+        } catch (\Exception $e) {
+            $error = "Failed to connect to MikroTik router: " . $e->getMessage();
+        }
+
+        return view('admin.active_sessions', compact('activeSessions', 'error'));
+    }
+
+    public function kickActiveSession($id)
+    {
+        try {
+            $routerClient = \App\Services\MikrotikService::getClient();
+            $routerClient->query(['/ip/hotspot/active/remove', '=.id=' . $id])->read();
+            return back()->with('success', 'Active session disconnected successfully.');
+        } catch (\Exception $e) {
+            return back()->withErrors(['error' => 'Failed to disconnect session: ' . $e->getMessage()]);
+        }
+    }
+
+    public function routerStatus()
+    {
+        try {
+            $routerClient = \App\Services\MikrotikService::getClient();
+            $routerClient->query('/system/identity/print')->read();
+            return response()->json(['online' => true]);
+        } catch (\Exception $e) {
+            return response()->json(['online' => false, 'error' => $e->getMessage()]);
+        }
     }
 }

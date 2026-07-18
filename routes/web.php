@@ -29,6 +29,11 @@ Route::middleware(['admin'])->prefix('admin')->group(function () {
     Route::get('/earnings', [AdminController::class, 'earnings'])->name('admin.earnings');
     Route::get('/analytics', [AdminController::class, 'analytics'])->name('admin.analytics');
     
+    // Active Sessions & Router status
+    Route::get('/active-sessions', [AdminController::class, 'activeSessions'])->name('admin.active_sessions');
+    Route::post('/active-sessions/{id}/kick', [AdminController::class, 'kickActiveSession'])->name('admin.active_sessions.kick');
+    Route::get('/router-status', [AdminController::class, 'routerStatus'])->name('admin.router_status');
+    
     // User management
     Route::post('/transactions/{id}/extend', [AdminController::class, 'extend'])->name('admin.extend');
     Route::post('/transactions/{id}/kick', [AdminController::class, 'kick'])->name('admin.kick');

@@ -31,6 +31,10 @@
                         <svg class="w-5 h-5 mr-3 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
                         Dashboard / Users
                     </a>
+                    <a href="{{ route('admin.active_sessions') }}" class="sidebar-link flex items-center px-4 py-2 text-sm font-medium {{ request()->routeIs('admin.active_sessions') ? 'bg-gray-800 text-white' : '' }}">
+                        <svg class="w-5 h-5 mr-3 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path></svg>
+                        Active Router Sessions
+                    </a>
                     <a href="{{ route('admin.packages') }}" class="sidebar-link flex items-center px-4 py-2 text-sm font-medium {{ request()->routeIs('admin.packages') ? 'bg-gray-800 text-white' : '' }}">
                         <svg class="w-5 h-5 mr-3 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
                         Manage Packages
@@ -56,8 +60,14 @@
 
     <!-- Main Content -->
     <div class="flex-1 flex flex-col h-full overflow-hidden">
-        <header class="bg-white shadow-sm border-b border-gray-200 p-4 shrink-0">
+        <header class="bg-white shadow-sm border-b border-gray-200 p-4 shrink-0 flex justify-between items-center">
             <h2 class="text-xl font-semibold text-gray-800">@yield('title')</h2>
+            <div id="router-status-badge">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">
+                    <span class="w-2 h-2 mr-1.5 bg-gray-400 rounded-full animate-pulse"></span>
+                    Router: Checking...
+                </span>
+            </div>
         </header>
         <main class="flex-1 overflow-y-auto p-4 bg-gray-50">
             @if(session('success'))
@@ -74,5 +84,38 @@
             @yield('content')
         </main>
     </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const badge = document.getElementById("router-status-badge");
+            
+            function checkStatus() {
+                fetch("{{ route('admin.router_status') }}")
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.online) {
+                            badge.innerHTML = `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                                <span class="w-2 h-2 mr-1.5 bg-green-500 rounded-full animate-pulse"></span>
+                                Router: Online
+                            </span>`;
+                        } else {
+                            badge.innerHTML = `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800" title="${data.error || 'Connection Failed'}">
+                                <span class="w-2 h-2 mr-1.5 bg-red-500 rounded-full"></span>
+                                Router: Offline
+                            </span>`;
+                        }
+                    })
+                    .catch(err => {
+                        badge.innerHTML = `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">
+                            Router: Offline
+                        </span>`;
+                    });
+            }
+            
+            checkStatus();
+            // Check status every 30 seconds
+            setInterval(checkStatus, 30000);
+        });
+    </script>
 </body>
 </html>

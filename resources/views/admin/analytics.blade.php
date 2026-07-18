@@ -3,11 +3,42 @@
 @section('title', 'Checkout Analytics')
 
 @section('content')
-<div class="mb-6 bg-white border border-gray-300 shadow-sm p-4 rounded-sm flex justify-between items-center">
-    <div>
-        <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wide">Checkout Page Visitors</h3>
-        <p class="text-xs text-gray-500 mt-1">Track users who land on the checkout page and see if they proceed to pay.</p>
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white border border-gray-300 shadow-sm p-4 rounded-sm">
+        <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Checkout Visits</h3>
+        <p class="text-2xl font-bold text-gray-900 mt-1">{{ number_format($totalVisits) }}</p>
+        <span class="text-[10px] text-gray-400">All-time page hits</span>
     </div>
+    
+    <div class="bg-white border border-gray-300 shadow-sm p-4 rounded-sm">
+        <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Unique Devices Seen</h3>
+        <p class="text-2xl font-bold text-gray-900 mt-1">{{ number_format($uniqueVisits) }}</p>
+        <span class="text-[10px] text-gray-400">Unique MAC addresses</span>
+    </div>
+
+    <div class="bg-white border border-gray-300 shadow-sm p-4 rounded-sm">
+        <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Unique Payers</h3>
+        <p class="text-2xl font-bold text-gray-900 mt-1">{{ number_format($uniquePaid) }}</p>
+        <span class="text-[10px] text-gray-400">Unique successful buyers</span>
+    </div>
+
+    <div class="bg-blue-900 text-white border border-blue-950 p-4 rounded-sm shadow-sm flex flex-col justify-between">
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-blue-200">Device Conversion Rate</h3>
+        <p class="text-3xl font-extrabold mt-1 text-white">{{ $conversionRate }}%</p>
+        <span class="text-[10px] text-blue-300">Payer MACs / Visitor MACs</span>
+    </div>
+</div>
+
+<!-- Conversion Chart -->
+<div class="mb-6 bg-white border border-gray-300 shadow-sm p-4 rounded-sm">
+    <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4">7-Day Conversion Trend</h3>
+    <div class="w-full" style="height: 250px;">
+        <canvas id="conversionChart"></canvas>
+    </div>
+</div>
+
+<div class="mb-4 flex justify-between items-center">
+    <h3 class="text-sm font-bold text-gray-700 uppercase tracking-wide">Checkout Page Visitors Log</h3>
 </div>
 
 <div class="bg-white border border-gray-300 shadow-sm rounded-sm overflow-hidden">
@@ -51,4 +82,58 @@
         {{ $visits->links() }}
     </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const ctx = document.getElementById('conversionChart').getContext('2d');
+        const labels = @json($chartLabels);
+        const rates = @json($chartRates);
+
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Conversion Rate (%)',
+                    data: rates,
+                    borderColor: '#1e3a8a',
+                    backgroundColor: 'rgba(30, 58, 138, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.3,
+                    fill: true,
+                    pointBackgroundColor: '#1e3a8a',
+                    pointRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return `Conversion Rate: ${context.parsed.y}%`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        ticks: {
+                            callback: function(value) {
+                                return value + "%";
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    });
+</script>
 @endsection

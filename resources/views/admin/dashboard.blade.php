@@ -10,7 +10,14 @@
     </div>
     
     <div>
-        <form method="GET" action="{{ route('admin.dashboard') }}" class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+        <form method="GET" action="{{ route('admin.dashboard') }}" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+            <div class="flex items-center space-x-2">
+                <input type="text" name="search" value="{{ $search ?? '' }}" placeholder="Search Phone, MAC, Txn ID..." class="border border-gray-300 px-3 py-1.5 text-sm rounded-sm focus:outline-none focus:border-gray-500 bg-white w-full sm:w-64">
+                <button type="submit" class="bg-gray-800 hover:bg-gray-700 text-white text-sm px-3.5 py-1.5 rounded-sm border border-gray-800 shadow-sm">
+                    Search
+                </button>
+            </div>
+
             <div class="flex items-center space-x-2">
                 <label class="text-sm font-medium text-gray-700">Status:</label>
                 <select name="status" onchange="this.form.submit()" class="border border-gray-300 px-3 py-1.5 text-sm rounded-sm focus:outline-none focus:border-gray-500 bg-white">
