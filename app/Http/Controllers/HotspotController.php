@@ -278,6 +278,11 @@ class HotspotController extends Controller
                 foreach ($queues as $q) {
                     $routerClient->query(['/queue/simple/remove', '=.id=' . $q['.id']])->read();
                 }
+                // Remove from hosts table
+                $hosts = $routerClient->query(['/ip/hotspot/host/print', '?mac-address=' . $oldMac])->read();
+                foreach ($hosts as $h) {
+                    $routerClient->query(['/ip/hotspot/host/remove', '=.id=' . $h['.id']])->read();
+                }
             } catch (\Exception $e) {}
 
             // 2. Clear any existing session for the NEW MAC just in case

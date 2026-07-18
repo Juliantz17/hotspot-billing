@@ -308,6 +308,11 @@ class AdminController extends Controller
                 foreach ($queues as $q) {
                     $routerClient->query(['/queue/simple/remove', '=.id=' . $q['.id']])->read();
                 }
+
+                $hosts = $routerClient->query(['/ip/hotspot/host/print', '?mac-address=' . $macTarget])->read();
+                foreach ($hosts as $h) {
+                    $routerClient->query(['/ip/hotspot/host/remove', '=.id=' . $h['.id']])->read();
+                }
             }
         } catch (\Exception $e) {
             Log::warning("Could not kick old MAC {$activeTxn->mac_address} during admin reconnect.", ['error' => $e->getMessage()]);
