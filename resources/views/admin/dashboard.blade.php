@@ -3,6 +3,41 @@
 @section('title', 'Active Users & Transactions')
 
 @section('content')
+<div class="mb-6 bg-white border border-gray-300 shadow-sm p-4 rounded-sm flex flex-col md:flex-row md:justify-between md:items-center space-y-4 md:space-y-0">
+    <div>
+        <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wide">Filters</h3>
+        <p class="text-xs text-gray-500 mt-1">Refine active users and transaction history</p>
+    </div>
+    
+    <div>
+        <form method="GET" action="{{ route('admin.dashboard') }}" class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div class="flex items-center space-x-2">
+                <label class="text-sm font-medium text-gray-700">Status:</label>
+                <select name="status" onchange="this.form.submit()" class="border border-gray-300 px-3 py-1.5 text-sm rounded-sm focus:outline-none focus:border-gray-500 bg-white">
+                    <option value="all" {{ $status === 'all' ? 'selected' : '' }}>All Statuses</option>
+                    <option value="active" {{ $status === 'active' ? 'selected' : '' }}>Active</option>
+                    <option value="pending" {{ $status === 'pending' ? 'selected' : '' }}>Pending</option>
+                    <option value="failed" {{ $status === 'failed' ? 'selected' : '' }}>Failed</option>
+                    <option value="expired" {{ $status === 'expired' ? 'selected' : '' }}>Expired</option>
+                </select>
+            </div>
+            
+            <div class="flex items-center space-x-2">
+                <label class="text-sm font-medium text-gray-700">Time:</label>
+                <select name="time" onchange="this.form.submit()" class="border border-gray-300 px-3 py-1.5 text-sm rounded-sm focus:outline-none focus:border-gray-500 bg-white">
+                    <option value="all" {{ $time === 'all' ? 'selected' : '' }}>All Time</option>
+                    <option value="today" {{ $time === 'today' ? 'selected' : '' }}>Today</option>
+                    <option value="yesterday" {{ $time === 'yesterday' ? 'selected' : '' }}>Yesterday</option>
+                    <option value="this_week" {{ $time === 'this_week' ? 'selected' : '' }}>This Week</option>
+                    <option value="last_week" {{ $time === 'last_week' ? 'selected' : '' }}>Last Week</option>
+                    <option value="this_month" {{ $time === 'this_month' ? 'selected' : '' }}>This Month</option>
+                    <option value="last_month" {{ $time === 'last_month' ? 'selected' : '' }}>Last Month</option>
+                </select>
+            </div>
+        </form>
+    </div>
+</div>
+
 <div class="bg-white border border-gray-300 shadow-sm rounded-sm overflow-hidden">
     <div class="overflow-x-auto">
         <table class="w-full text-sm text-left whitespace-nowrap">

@@ -11,13 +11,49 @@ use Carbon\Carbon;
 
 class AdminController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $transactions = DB::table('hotspot_transactions')
-            ->orderBy('created_at', 'desc')
-            ->paginate(10);
+        $status = $request->query('status', 'all');
+        $time = $request->query('time', 'all');
 
-        return view('admin.dashboard', compact('transactions'));
+        $query = DB::table('hotspot_transactions');
+
+        // Apply status filter
+        if ($status === 'active') {
+            $query->where('status', 'SUCCESS')
+                  ->where('expires_at', '>', Carbon::now());
+        } elseif ($status === 'pending') {
+            $query->where('status', 'PENDING');
+        } elseif ($status === 'failed') {
+            $query->where('status', 'FAILED');
+        } elseif ($status === 'expired') {
+            $query->where('status', 'SUCCESS')
+                  ->where(function ($q) {
+                      $q->where('expires_at', '<=', Carbon::now())
+                        ->orWhereNull('expires_at');
+                  });
+        }
+
+        // Apply time filter
+        if ($time === 'today') {
+            $query->whereDate('created_at', Carbon::today());
+        } elseif ($time === 'yesterday') {
+            $query->whereDate('created_at', Carbon::yesterday());
+        } elseif ($time === 'this_week') {
+            $query->whereBetween('created_at', [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()]);
+        } elseif ($time === 'last_week') {
+            $query->whereBetween('created_at', [Carbon::now()->subWeek()->startOfWeek(), Carbon::now()->subWeek()->endOfWeek()]);
+        } elseif ($time === 'this_month') {
+            $query->whereMonth('created_at', Carbon::now()->month)->whereYear('created_at', Carbon::now()->year);
+        } elseif ($time === 'last_month') {
+            $query->whereMonth('created_at', Carbon::now()->subMonth()->month)->whereYear('created_at', Carbon::now()->subMonth()->year);
+        }
+
+        $transactions = $query->orderBy('created_at', 'desc')
+            ->paginate(10)
+            ->appends(['status' => $status, 'time' => $time]);
+
+        return view('admin.dashboard', compact('transactions', 'status', 'time'));
     }
 
     public function analytics()
