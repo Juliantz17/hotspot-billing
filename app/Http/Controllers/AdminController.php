@@ -342,7 +342,71 @@ class AdminController extends Controller
         $error = null;
         try {
             $routerClient = \App\Services\MikrotikService::getClient();
-            $activeSessions = $routerClient->query('/ip/hotspot/active/print')->read();
+            
+            // 1. Query hosts table
+            $hosts = $routerClient->query('/ip/hotspot/host/print')->read();
+            
+            // 2. Query IP Bindings to get comments
+            $bindings = $routerClient->query('/ip/hotspot/ip-binding/print')->read();
+            $bindingsMap = [];
+            foreach ($bindings as $b) {
+                if (!empty($b['mac-address'])) {
+                    $bindingsMap[strtolower($b['mac-address'])] = $b;
+                }
+            }
+
+            // 3. Query Simple Queues to get cumulative data usage
+            $queues = $routerClient->query('/queue/simple/print')->read();
+            $queuesMap = [];
+            foreach ($queues as $q) {
+                // Name format is: RateLimit_AA:BB:CC:DD:EE:FF
+                if (!empty($q['name']) && strpos($q['name'], 'RateLimit_') === 0) {
+                    $mac = strtolower(substr($q['name'], 10));
+                    $queuesMap[$mac] = $q;
+                }
+            }
+
+            // 4. Merge data
+            foreach ($hosts as $h) {
+                $mac = strtolower($h['mac-address'] ?? '');
+                if (empty($mac)) continue;
+
+                $binding = $bindingsMap[$mac] ?? null;
+                $queue = $queuesMap[$mac] ?? null;
+                
+                $isBypassed = isset($h['bypassed']) && ($h['bypassed'] === 'true' || $h['bypassed'] === true);
+
+                // Queue bytes field format: "upload/download" (e.g. "12345/67890")
+                $queueUploadBytes = 0;
+                $queueDownloadBytes = 0;
+                if (!empty($queue['bytes'])) {
+                    $parts = explode('/', $queue['bytes']);
+                    if (count($parts) === 2) {
+                        $queueUploadBytes = floatval($parts[0]);
+                        $queueDownloadBytes = floatval($parts[1]);
+                    }
+                }
+
+                $activeSessions[] = [
+                    '.id' => $h['.id'] ?? null,
+                    'user' => $h['mac-address'] ?? 'Unknown',
+                    'address' => $h['address'] ?? '-',
+                    'bypassed' => $isBypassed,
+                    'idle-time' => $h['idle-time'] ?? '-',
+                    'rx-rate' => $h['rx-rate'] ?? '-',
+                    'tx-rate' => $h['tx-rate'] ?? '-',
+                    
+                    // Session bytes
+                    'bytes-in' => $h['bytes-in'] ?? '0',
+                    'bytes-out' => $h['bytes-out'] ?? '0',
+                    
+                    // Cumulative Queue bytes (Package usage)
+                    'queue-in' => $queueUploadBytes,
+                    'queue-out' => $queueDownloadBytes,
+
+                    'comment' => $h['comment'] ?? ($binding['comment'] ?? '-'),
+                ];
+            }
         } catch (\Exception $e) {
             $error = "Failed to connect to MikroTik router: " . $e->getMessage();
         }
@@ -354,10 +418,10 @@ class AdminController extends Controller
     {
         try {
             $routerClient = \App\Services\MikrotikService::getClient();
-            $routerClient->query(['/ip/hotspot/active/remove', '=.id=' . $id])->read();
-            return back()->with('success', 'Active session disconnected successfully.');
+            $routerClient->query(['/ip/hotspot/host/remove', '=.id=' . $id])->read();
+            return back()->with('success', 'Host connection removed successfully.');
         } catch (\Exception $e) {
-            return back()->withErrors(['error' => 'Failed to disconnect session: ' . $e->getMessage()]);
+            return back()->withErrors(['error' => 'Failed to remove host connection: ' . $e->getMessage()]);
         }
     }
 

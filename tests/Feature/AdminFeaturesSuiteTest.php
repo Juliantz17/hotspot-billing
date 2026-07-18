@@ -94,21 +94,43 @@ class AdminFeaturesSuiteTest extends TestCase
 
     public function test_live_active_sessions_list()
     {
-        // Mock RouterClient active sessions output
         $this->app->bind(RouterClient::class, function () {
             $mock = \Mockery::mock(RouterClient::class);
-            $mock->shouldReceive('query')->with('/ip/hotspot/active/print')->once()->andReturnSelf();
+            
+            // Query 1: Host Print
+            $mock->shouldReceive('query')->with('/ip/hotspot/host/print')->once()->andReturnSelf();
             $mock->shouldReceive('read')->once()->andReturn([
                 [
                     '.id' => '*1',
-                    'user' => 'AA:BB:CC:DD:EE:11',
+                    'mac-address' => 'AA:BB:CC:DD:EE:11',
                     'address' => '192.168.88.254',
-                    'uptime' => '00:10:45',
+                    'bypassed' => 'true',
+                    'idle-time' => '00:05:00',
+                    'rx-rate' => '54kbps',
+                    'tx-rate' => '128kbps',
                     'bytes-in' => '512000',
                     'bytes-out' => '1048576',
+                ]
+            ]);
+
+            // Query 2: Binding Print
+            $mock->shouldReceive('query')->with('/ip/hotspot/ip-binding/print')->once()->andReturnSelf();
+            $mock->shouldReceive('read')->once()->andReturn([
+                [
+                    'mac-address' => 'AA:BB:CC:DD:EE:11',
                     'comment' => 'Test active session comment'
                 ]
             ]);
+
+            // Query 3: Queue Print
+            $mock->shouldReceive('query')->with('/queue/simple/print')->once()->andReturnSelf();
+            $mock->shouldReceive('read')->once()->andReturn([
+                [
+                    'name' => 'RateLimit_AA:BB:CC:DD:EE:11',
+                    'bytes' => '2097152/4194304' // 2 MB / 4 MB
+                ]
+            ]);
+
             return $mock;
         });
 
@@ -118,9 +140,12 @@ class AdminFeaturesSuiteTest extends TestCase
         $response->assertStatus(200);
         $response->assertSee('AA:BB:CC:DD:EE:11');
         $response->assertSee('192.168.88.254');
-        $response->assertSee('00:10:45');
-        $response->assertSee('500 KB'); 
-        $response->assertSee('1 MB');   
+        $response->assertSee('Bypassed (Active)');
+        $response->assertSee('54kbps / 128kbps');
+        $response->assertSee('500 KB'); // current session upload
+        $response->assertSee('1 MB');   // current session download
+        $response->assertSee('2 MB');   // cumulative upload
+        $response->assertSee('4 MB');   // cumulative download
         $response->assertSee('Test active session comment');
     }
 
@@ -128,7 +153,7 @@ class AdminFeaturesSuiteTest extends TestCase
     {
         $this->app->bind(RouterClient::class, function () {
             $mock = \Mockery::mock(RouterClient::class);
-            $mock->shouldReceive('query')->with(['/ip/hotspot/active/remove', '=.id=*1'])->once()->andReturnSelf();
+            $mock->shouldReceive('query')->with(['/ip/hotspot/host/remove', '=.id=*1'])->once()->andReturnSelf();
             $mock->shouldReceive('read')->once()->andReturn([]);
             return $mock;
         });
@@ -137,7 +162,7 @@ class AdminFeaturesSuiteTest extends TestCase
             ->post(route('admin.active_sessions.kick', '*1'));
 
         $response->assertStatus(302); // Redirect back
-        $response->assertSessionHas('success', 'Active session disconnected successfully.');
+        $response->assertSessionHas('success', 'Host connection removed successfully.');
     }
 
     public function test_conversion_rate_analytics()
