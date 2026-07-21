@@ -90,6 +90,156 @@ class AdminController extends Controller
 
         $conversionRate = $uniqueVisits > 0 ? round(($uniquePaid / $uniqueVisits) * 100, 1) : 0;
 
+        // Revenue today and this week
+        $revenueToday = DB::table('hotspot_transactions')
+            ->where('status', 'SUCCESS')
+            ->whereDate('created_at', Carbon::today())
+            ->sum('amount');
+
+        $revenueThisWeek = DB::table('hotspot_transactions')
+            ->where('status', 'SUCCESS')
+            ->where('created_at', '>=', Carbon::now()->startOfWeek())
+            ->sum('amount');
+
+        // Visitors who reached checkout but didn't pay (Abandoned Checkout)
+        $paidMacs = DB::table('hotspot_transactions')
+            ->where('status', 'SUCCESS')
+            ->pluck('mac_address')
+            ->unique()
+            ->filter()
+            ->toArray();
+
+        $abandonedVisitsCount = DB::table('checkout_visits')
+            ->whereNotIn('mac_address', $paidMacs)
+            ->distinct('mac_address')
+            ->count('mac_address');
+
+        $abandonedRate = $uniqueVisits > 0 ? round(($abandonedVisitsCount / $uniqueVisits) * 100, 1) : 0;
+
+        // Returning Customers (paying MAC addresses with > 1 successful transactions)
+        $returningCustomersCount = DB::table('hotspot_transactions')
+            ->where('status', 'SUCCESS')
+            ->select('mac_address', DB::raw('count(*) as txn_count'))
+            ->groupBy('mac_address')
+            ->having('txn_count', '>', 1)
+            ->get()
+            ->count();
+
+        $returningCustomersRate = $uniquePaid > 0 ? round(($returningCustomersCount / $uniquePaid) * 100, 1) : 0;
+
+        // Peak Hours (when most visitors connect)
+        $hourRaw = DB::connection()->getDriverName() === 'sqlite'
+            ? DB::raw("CAST(strftime('%H', created_at) AS INTEGER) as hour")
+            : DB::raw('HOUR(created_at) as hour');
+
+        $hourlyVisitsRaw = DB::table('checkout_visits')
+            ->select($hourRaw, DB::raw('count(*) as count'))
+            ->groupBy('hour')
+            ->pluck('count', 'hour')
+            ->toArray();
+
+        $hourlyChartLabels = [];
+        $hourlyChartData = [];
+        $peakHourStr = null;
+        $peakHourCount = 0;
+
+        for ($h = 0; $h < 24; $h++) {
+            $count = $hourlyVisitsRaw[$h] ?? 0;
+            $label = sprintf('%02d:00', $h);
+            $hourlyChartLabels[] = $label;
+            $hourlyChartData[] = $count;
+
+            if ($count > $peakHourCount) {
+                $peakHourCount = $count;
+                $nextH = ($h + 1) % 24;
+                $peakHourStr = sprintf('%02d:00 - %02d:00', $h, $nextH);
+            }
+        }
+
+        $peakHourFormatted = $peakHourStr ? "$peakHourStr ($peakHourCount visits)" : 'N/A';
+
+        // Most Popular Package
+        $allPackages = DB::table('packages')->get();
+
+        $popularPackagesRaw = DB::table('hotspot_transactions')
+            ->where('status', 'SUCCESS')
+            ->select('duration_minutes', 'amount', 'speed_limit', DB::raw('count(*) as total_sales'), DB::raw('sum(amount) as total_revenue'))
+            ->groupBy('duration_minutes', 'amount', 'speed_limit')
+            ->orderBy('total_sales', 'desc')
+            ->get();
+
+        $packagePopularity = [];
+        $mostPopularPackageName = 'N/A';
+        $mostPopularPackageSales = 0;
+
+        foreach ($popularPackagesRaw as $idx => $p) {
+            $matchingPkg = $allPackages->first(function ($pkg) use ($p) {
+                return $pkg->duration_minutes == $p->duration_minutes && $pkg->price == $p->amount;
+            });
+
+            $pkgName = $matchingPkg ? $matchingPkg->name : ($p->duration_minutes . ' Min (' . number_format($p->amount) . ' TZS)');
+            
+            $packagePopularity[] = [
+                'name' => $pkgName,
+                'duration_minutes' => $p->duration_minutes,
+                'amount' => $p->amount,
+                'sales' => $p->total_sales,
+                'revenue' => $p->total_revenue,
+            ];
+
+            if ($idx === 0) {
+                $mostPopularPackageName = $pkgName;
+                $mostPopularPackageSales = $p->total_sales;
+            }
+        }
+
+        // Average Data Used Per Customer
+        $avgDataUsedFormatted = 'N/A';
+        try {
+            if (!app()->environment('testing') || app()->bound(\RouterOS\Client::class)) {
+                $routerClient = \App\Services\MikrotikService::getClient();
+                $hosts = $routerClient->query('/ip/hotspot/host/print')->read();
+                $queues = $routerClient->query('/queue/simple/print')->read();
+                
+                $totalBytes = 0;
+                $userCount = 0;
+
+                foreach ($hosts as $h) {
+                    $bytesIn = floatval($h['bytes-in'] ?? 0);
+                    $bytesOut = floatval($h['bytes-out'] ?? 0);
+                    if ($bytesIn > 0 || $bytesOut > 0) {
+                        $totalBytes += ($bytesIn + $bytesOut);
+                        $userCount++;
+                    }
+                }
+                
+                if ($userCount == 0 && !empty($queues)) {
+                    foreach ($queues as $q) {
+                        if (!empty($q['bytes'])) {
+                            $parts = explode('/', $q['bytes']);
+                            if (count($parts) === 2) {
+                                $uBytes = floatval($parts[0]);
+                                $dBytes = floatval($parts[1]);
+                                if ($uBytes > 0 || $dBytes > 0) {
+                                    $totalBytes += ($uBytes + $dBytes);
+                                    $userCount++;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if ($userCount > 0) {
+                    $avgBytes = $totalBytes / $userCount;
+                    $avgDataUsedFormatted = $this->formatBytes($avgBytes);
+                } else {
+                    $avgDataUsedFormatted = '0 B';
+                }
+            }
+        } catch (\Exception $e) {
+            $avgDataUsedFormatted = 'N/A';
+        }
+
         // Daily visits for the last 7 days (unique MAC addresses)
         $dailyVisits = DB::table('checkout_visits')
             ->select(DB::raw('DATE(created_at) as date'), DB::raw('count(distinct mac_address) as count'))
@@ -131,8 +281,32 @@ class AdminController extends Controller
             'uniquePaid', 
             'conversionRate',
             'chartLabels',
-            'chartRates'
+            'chartRates',
+            'revenueToday',
+            'revenueThisWeek',
+            'abandonedVisitsCount',
+            'abandonedRate',
+            'returningCustomersCount',
+            'returningCustomersRate',
+            'peakHourFormatted',
+            'hourlyChartLabels',
+            'hourlyChartData',
+            'mostPopularPackageName',
+            'mostPopularPackageSales',
+            'packagePopularity',
+            'avgDataUsedFormatted'
         ));
+    }
+
+    private function formatBytes($bytes, $precision = 2)
+    {
+        $bytes = floatval($bytes);
+        $units = array('B', 'KB', 'MB', 'GB', 'TB');
+        $bytes = max($bytes, 0);
+        $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
+        $pow = min($pow, count($units) - 1);
+        $bytes /= pow(1024, $pow);
+        return round($bytes, $precision) . ' ' . $units[$pow];
     }
 
     public function earnings(Request $request)

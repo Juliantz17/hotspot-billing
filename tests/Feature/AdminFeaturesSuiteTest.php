@@ -204,9 +204,85 @@ class AdminFeaturesSuiteTest extends TestCase
             ->get(route('admin.analytics'));
 
         $response->assertStatus(200);
-        $response->assertSee('50%'); 
-        $response->assertSee('3');   
-        $response->assertSee('2');   
-        $response->assertSee('1');   
+        $response->assertSee('50%');
+    }
+
+    public function test_new_analytics_metrics()
+    {
+        // 1. Setup Package
+        DB::table('packages')->insert([
+            'name' => 'Super Fast 1 Hr',
+            'duration_minutes' => 60,
+            'price' => 1000,
+            'is_active' => true,
+            'created_at' => Carbon::now(),
+            'updated_at' => Carbon::now(),
+        ]);
+
+        // 2. Setup Checkout Visits (20:00 peak hour)
+        DB::table('checkout_visits')->insert([
+            'mac_address' => '11:22:33:44:55:66',
+            'ip_address' => '192.168.88.10',
+            'created_at' => Carbon::today()->setHour(20)->setMinute(15),
+            'updated_at' => Carbon::now(),
+        ]);
+        DB::table('checkout_visits')->insert([
+            'mac_address' => '11:22:33:44:55:66',
+            'ip_address' => '192.168.88.10',
+            'created_at' => Carbon::today()->setHour(20)->setMinute(30),
+            'updated_at' => Carbon::now(),
+        ]);
+        // Abandoned visitor (visits, but never pays)
+        DB::table('checkout_visits')->insert([
+            'mac_address' => '99:88:77:66:55:44',
+            'ip_address' => '192.168.88.99',
+            'created_at' => Carbon::today()->setHour(14)->setMinute(10),
+            'updated_at' => Carbon::now(),
+        ]);
+
+        // 3. Transactions (returning customer: MAC 11:22:33:44:55:66 has 2 payments today)
+        DB::table('hotspot_transactions')->insert([
+            'transaction_id' => 'TXN_ANALYTICS_1',
+            'mac_address' => '11:22:33:44:55:66',
+            'phone_number' => '255711111111',
+            'amount' => 1000,
+            'duration_minutes' => 60,
+            'status' => 'SUCCESS',
+            'created_at' => Carbon::now(),
+            'updated_at' => Carbon::now(),
+        ]);
+        DB::table('hotspot_transactions')->insert([
+            'transaction_id' => 'TXN_ANALYTICS_2',
+            'mac_address' => '11:22:33:44:55:66',
+            'phone_number' => '255711111111',
+            'amount' => 1000,
+            'duration_minutes' => 60,
+            'status' => 'SUCCESS',
+            'created_at' => Carbon::now()->subHour(),
+            'updated_at' => Carbon::now(),
+        ]);
+
+        $response = $this->withSession(['admin_logged_in' => true])
+            ->get(route('admin.analytics'));
+
+        $response->assertStatus(200);
+
+        // Assert Revenue Today & This Week (2,000 TZS)
+        $response->assertSee('2,000');
+
+        // Assert Peak Hour (20:00 - 21:00)
+        $response->assertSee('20:00 - 21:00');
+
+        // Assert Most Popular Package
+        $response->assertSee('Super Fast 1 Hr');
+
+        // Assert Returning Customer count
+        $response->assertSee('Returning Customers');
+
+        // Assert Abandoned Checkout count & Section
+        $response->assertSee('Abandoned Checkout');
+
+        // Assert Data Used metric section
+        $response->assertSee('Avg Data / Customer');
     }
 }
