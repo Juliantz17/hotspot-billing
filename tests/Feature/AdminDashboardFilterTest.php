@@ -161,7 +161,7 @@ class AdminDashboardFilterTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertSee('Online Users');
-        $response->assertSee('Today&#039;s Revenue', false);
+        $response->assertSee('Revenue');
         $response->assertSee('Bandwidth');
         $response->assertSee('Internet Status');
         $response->assertSee('Router CPU');

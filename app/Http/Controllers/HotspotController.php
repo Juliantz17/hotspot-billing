@@ -13,6 +13,7 @@ class HotspotController extends Controller
     {
         $mac = $request->query('mac', '00:00:00:00:00:00'); 
         $ip = $request->query('ip', '');
+        $activeTxn = null;
         
         if ($mac !== '00:00:00:00:00:00') {
             try {

@@ -55,6 +55,7 @@ class ProvisionHotspotUserTest extends TestCase
 
         // Optional: Suppress or check for log output during testing
         Log::shouldReceive('info')->andReturnNull()->byDefault();
+        Log::shouldReceive('warning')->andReturnNull()->byDefault();
         Log::shouldReceive('error')->andReturnNull()->byDefault();
 
         // 3. Act: Instantiate the listener and handle the event manually
