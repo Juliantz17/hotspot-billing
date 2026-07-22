@@ -169,4 +169,22 @@ class AdminDashboardFilterTest extends TestCase
         $response->assertSee('Expired Today');
         $response->assertSee('Kifurushi cha Saa 1');
     }
+
+    public function test_live_metrics_endpoint_returns_json()
+    {
+        $response = $this->withSession(['admin_logged_in' => true])
+            ->get(route('admin.live_metrics'));
+
+        $response->assertStatus(200);
+        $response->assertJsonStructure([
+            'online_users',
+            'revenue_today',
+            'revenue_today_formatted',
+            'current_bandwidth',
+            'internet_status',
+            'router_cpu',
+            'router_memory',
+            'expired_sessions_today'
+        ]);
+    }
 }

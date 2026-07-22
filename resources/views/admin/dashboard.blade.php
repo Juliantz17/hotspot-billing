@@ -12,7 +12,7 @@
             <span class="inline-block w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span>
         </div>
         <div class="mt-2">
-            <span class="text-xl font-extrabold text-gray-900">🟢 {{ $metrics['online_users'] ?? 0 }}</span>
+            <span id="stat-online-users" class="text-xl font-extrabold text-gray-900">🟢 {{ $metrics['online_users'] ?? 0 }}</span>
         </div>
     </div>
 
@@ -20,7 +20,7 @@
     <div class="bg-white p-3.5 rounded-sm border border-gray-300 shadow-sm flex flex-col justify-between">
         <span class="text-[11px] font-bold uppercase text-gray-500 tracking-wider">Today's Revenue</span>
         <div class="mt-2">
-            <span class="text-base font-extrabold text-emerald-600">TZS {{ number_format($metrics['revenue_today'] ?? 0) }}</span>
+            <span id="stat-revenue-today" class="text-base font-extrabold text-emerald-600">TZS {{ number_format($metrics['revenue_today'] ?? 0) }}</span>
         </div>
     </div>
 
@@ -28,7 +28,7 @@
     <div class="bg-white p-3.5 rounded-sm border border-gray-300 shadow-sm flex flex-col justify-between">
         <span class="text-[11px] font-bold uppercase text-gray-500 tracking-wider">Bandwidth</span>
         <div class="mt-2">
-            <span class="text-base font-bold text-blue-600">{{ $metrics['current_bandwidth'] ?? '0 Mbps' }}</span>
+            <span id="stat-current-bandwidth" class="text-base font-bold text-blue-600">{{ $metrics['current_bandwidth'] ?? '0 Mbps' }}</span>
         </div>
     </div>
 
@@ -37,9 +37,9 @@
         <span class="text-[11px] font-bold uppercase text-gray-500 tracking-wider">Internet Status</span>
         <div class="mt-2">
             @if(!empty($metrics['internet_status']))
-                <span class="inline-flex items-center text-xs font-bold text-green-700 bg-green-50 px-1.5 py-0.5 rounded border border-green-200">🟢 Online</span>
+                <span id="stat-internet-status" class="inline-flex items-center text-xs font-bold text-green-700 bg-green-50 px-1.5 py-0.5 rounded border border-green-200">🟢 Online</span>
             @else
-                <span class="inline-flex items-center text-xs font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-200">🔴 Offline</span>
+                <span id="stat-internet-status" class="inline-flex items-center text-xs font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-200">🔴 Offline</span>
             @endif
         </div>
     </div>
@@ -48,7 +48,7 @@
     <div class="bg-white p-3.5 rounded-sm border border-gray-300 shadow-sm flex flex-col justify-between">
         <span class="text-[11px] font-bold uppercase text-gray-500 tracking-wider">Router CPU</span>
         <div class="mt-2">
-            <span class="text-base font-bold text-purple-700">{{ $metrics['router_cpu'] ?? 'N/A' }}</span>
+            <span id="stat-router-cpu" class="text-base font-bold text-purple-700">{{ $metrics['router_cpu'] ?? 'N/A' }}</span>
         </div>
     </div>
 
@@ -56,7 +56,7 @@
     <div class="bg-white p-3.5 rounded-sm border border-gray-300 shadow-sm flex flex-col justify-between">
         <span class="text-[11px] font-bold uppercase text-gray-500 tracking-wider">Router Memory</span>
         <div class="mt-2">
-            <span class="text-base font-bold text-indigo-700">{{ $metrics['router_memory'] ?? 'N/A' }}</span>
+            <span id="stat-router-memory" class="text-base font-bold text-indigo-700">{{ $metrics['router_memory'] ?? 'N/A' }}</span>
         </div>
     </div>
 
@@ -64,7 +64,7 @@
     <div class="bg-white p-3.5 rounded-sm border border-gray-300 shadow-sm flex flex-col justify-between">
         <span class="text-[11px] font-bold uppercase text-gray-500 tracking-wider">Expired Today</span>
         <div class="mt-2">
-            <span class="text-base font-extrabold text-gray-700">{{ $metrics['expired_sessions_today'] ?? 0 }}</span>
+            <span id="stat-expired-today" class="text-base font-extrabold text-gray-700">{{ $metrics['expired_sessions_today'] ?? 0 }}</span>
         </div>
     </div>
 </div>
@@ -194,4 +194,49 @@
         {{ $transactions->links() }}
     </div>
 </div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        function updateLiveMetrics() {
+            fetch("{{ route('admin.live_metrics') }}")
+                .then(response => response.json())
+                .then(data => {
+                    if (data) {
+                        const onlineElem = document.getElementById("stat-online-users");
+                        if (onlineElem) onlineElem.textContent = "🟢 " + (data.online_users || 0);
+
+                        const revElem = document.getElementById("stat-revenue-today");
+                        if (revElem) revElem.textContent = data.revenue_today_formatted || "TZS 0";
+
+                        const bwElem = document.getElementById("stat-current-bandwidth");
+                        if (bwElem) bwElem.textContent = data.current_bandwidth || "0 Mbps";
+
+                        const statusElem = document.getElementById("stat-internet-status");
+                        if (statusElem) {
+                            if (data.internet_status) {
+                                statusElem.className = "inline-flex items-center text-xs font-bold text-green-700 bg-green-50 px-1.5 py-0.5 rounded border border-green-200";
+                                statusElem.textContent = "🟢 Online";
+                            } else {
+                                statusElem.className = "inline-flex items-center text-xs font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-200";
+                                statusElem.textContent = "🔴 Offline";
+                            }
+                        }
+
+                        const cpuElem = document.getElementById("stat-router-cpu");
+                        if (cpuElem) cpuElem.textContent = data.router_cpu || "N/A";
+
+                        const memElem = document.getElementById("stat-router-memory");
+                        if (memElem) memElem.textContent = data.router_memory || "N/A";
+
+                        const expElem = document.getElementById("stat-expired-today");
+                        if (expElem) expElem.textContent = data.expired_sessions_today || 0;
+                    }
+                })
+                .catch(err => console.warn("Live metrics update failed:", err));
+        }
+
+        // Poll live metrics every 5 seconds without reloading the page
+        setInterval(updateLiveMetrics, 5000);
+    });
+</script>
 @endsection

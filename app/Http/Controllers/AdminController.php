@@ -84,7 +84,18 @@ class AdminController extends Controller
             }
         }
 
-        // Dashboard Overview KPI Metrics
+        $metrics = $this->getDashboardMetrics();
+
+        return view('admin.dashboard', compact('transactions', 'status', 'time', 'search', 'metrics'));
+    }
+
+    public function liveMetrics()
+    {
+        return response()->json($this->getDashboardMetrics());
+    }
+
+    private function getDashboardMetrics()
+    {
         $revenueToday = DB::table('hotspot_transactions')
             ->where('status', 'SUCCESS')
             ->whereDate('created_at', Carbon::today())
@@ -172,17 +183,16 @@ class AdminController extends Controller
             $currentBandwidthFormatted = $currentBandwidthBps > 0 ? round($currentBandwidthBps) . ' bps' : '0 Mbps';
         }
 
-        $metrics = [
+        return [
             'online_users' => $onlineUsersCount,
             'revenue_today' => $revenueToday,
+            'revenue_today_formatted' => 'TZS ' . number_format($revenueToday),
             'current_bandwidth' => $currentBandwidthFormatted,
             'internet_status' => $internetStatus,
             'router_cpu' => $routerCpu,
             'router_memory' => $routerMemory,
             'expired_sessions_today' => $expiredSessionsToday,
         ];
-
-        return view('admin.dashboard', compact('transactions', 'status', 'time', 'search', 'metrics'));
     }
 
     public function analytics()

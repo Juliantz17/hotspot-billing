@@ -33,6 +33,7 @@ Route::middleware(['admin'])->prefix('admin')->group(function () {
     Route::get('/active-sessions', [AdminController::class, 'activeSessions'])->name('admin.active_sessions');
     Route::post('/active-sessions/{id}/kick', [AdminController::class, 'kickActiveSession'])->name('admin.active_sessions.kick');
     Route::get('/router-status', [AdminController::class, 'routerStatus'])->name('admin.router_status');
+    Route::get('/live-metrics', [AdminController::class, 'liveMetrics'])->name('admin.live_metrics');
     
     // User management
     Route::post('/transactions/{id}/extend', [AdminController::class, 'extend'])->name('admin.extend');
