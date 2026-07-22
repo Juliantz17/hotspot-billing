@@ -130,4 +130,43 @@ class AdminDashboardFilterTest extends TestCase
         $response->assertDontSee('TXN_ACTIVE_TODAY');
         $response->assertDontSee('TXN_PENDING_YESTERDAY');
     }
+
+    public function test_dashboard_displays_kpi_metrics_and_package_names()
+    {
+        // Create a package
+        DB::table('packages')->insert([
+            'name' => 'Kifurushi cha Saa 1',
+            'duration_minutes' => 60,
+            'price' => 500,
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // Insert a transaction matching this package
+        DB::table('hotspot_transactions')->insert([
+            'transaction_id' => 'TXN_PKG_TEST',
+            'mac_address' => 'AA:BB:CC:DD:EE:FF',
+            'phone_number' => '255712345678',
+            'amount' => 500,
+            'duration_minutes' => 60,
+            'status' => 'SUCCESS',
+            'expires_at' => Carbon::now()->addHour(),
+            'created_at' => Carbon::now(),
+            'updated_at' => Carbon::now(),
+        ]);
+
+        $response = $this->withSession(['admin_logged_in' => true])
+            ->get(route('admin.dashboard'));
+
+        $response->assertStatus(200);
+        $response->assertSee('Online Users');
+        $response->assertSee('Today&#039;s Revenue', false);
+        $response->assertSee('Bandwidth');
+        $response->assertSee('Internet Status');
+        $response->assertSee('Router CPU');
+        $response->assertSee('Router Memory');
+        $response->assertSee('Expired Today');
+        $response->assertSee('Kifurushi cha Saa 1');
+    }
 }

@@ -63,7 +63,126 @@ class AdminController extends Controller
             ->paginate(10)
             ->appends(['status' => $status, 'time' => $time, 'search' => $search]);
 
-        return view('admin.dashboard', compact('transactions', 'status', 'time', 'search'));
+        // Fetch all packages for package name matching
+        $allPackages = DB::table('packages')->get();
+
+        foreach ($transactions as $txn) {
+            $matchingPkg = $allPackages->first(function ($pkg) use ($txn) {
+                return $pkg->duration_minutes == $txn->duration_minutes && $pkg->price == $txn->amount;
+            });
+
+            if ($matchingPkg) {
+                $txn->package_name = $matchingPkg->name;
+            } else {
+                if ($txn->duration_minutes < 60) {
+                    $txn->package_name = $txn->duration_minutes . ' Min';
+                } elseif ($txn->duration_minutes < 1440) {
+                    $txn->package_name = round($txn->duration_minutes / 60, 1) . ' Hr';
+                } else {
+                    $txn->package_name = round($txn->duration_minutes / 1440, 1) . ' Day';
+                }
+            }
+        }
+
+        // Dashboard Overview KPI Metrics
+        $revenueToday = DB::table('hotspot_transactions')
+            ->where('status', 'SUCCESS')
+            ->whereDate('created_at', Carbon::today())
+            ->sum('amount');
+
+        $expiredSessionsToday = DB::table('hotspot_transactions')
+            ->where('status', 'SUCCESS')
+            ->whereDate('expires_at', Carbon::today())
+            ->where('expires_at', '<=', Carbon::now())
+            ->count();
+
+        $activeDbUsersCount = DB::table('hotspot_transactions')
+            ->where('status', 'SUCCESS')
+            ->where('expires_at', '>', Carbon::now())
+            ->count();
+
+        $onlineUsersCount = $activeDbUsersCount;
+        $internetStatus = false;
+        $routerCpu = 'N/A';
+        $routerMemory = 'N/A';
+        $currentBandwidthBps = 0;
+
+        try {
+            if (!app()->environment('testing') || app()->bound(\RouterOS\Client::class)) {
+                $routerClient = \App\Services\MikrotikService::getClient();
+                
+                // Check Router Identity & Connection
+                $identity = $routerClient->query('/system/identity/print')->read();
+                if (!empty($identity)) {
+                    $internetStatus = true;
+                }
+
+                // Query System Resource for CPU and Memory
+                $resource = $routerClient->query('/system/resource/print')->read();
+                if (!empty($resource[0])) {
+                    $res = $resource[0];
+                    if (isset($res['cpu-load'])) {
+                        $routerCpu = $res['cpu-load'] . '%';
+                    }
+                    if (isset($res['total-memory']) && isset($res['free-memory'])) {
+                        $tot = floatval($res['total-memory']);
+                        $free = floatval($res['free-memory']);
+                        if ($tot > 0) {
+                            $routerMemory = round((($tot - $free) / $tot) * 100) . '%';
+                        }
+                    }
+                }
+
+                // Query Hotspot Active Users & Hosts
+                $activeHosts = $routerClient->query('/ip/hotspot/host/print')->read();
+                if (!empty($activeHosts)) {
+                    $onlineUsersCount = max(count($activeHosts), $activeDbUsersCount);
+                    foreach ($activeHosts as $h) {
+                        $rxRate = floatval($h['rx-rate'] ?? 0);
+                        $txRate = floatval($h['tx-rate'] ?? 0);
+                        $currentBandwidthBps += ($rxRate + $txRate);
+                    }
+                }
+
+                // Query Simple Queues for rate calculation if host rates are zero
+                if ($currentBandwidthBps == 0) {
+                    $queues = $routerClient->query('/queue/simple/print')->read();
+                    if (!empty($queues)) {
+                        foreach ($queues as $q) {
+                            if (!empty($q['rate'])) {
+                                $parts = explode('/', $q['rate']);
+                                if (count($parts) === 2) {
+                                    $currentBandwidthBps += (floatval($parts[0]) + floatval($parts[1]));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            // Router offline/unreachable fallback values set safely
+        }
+
+        // Format Bandwidth nicely
+        if ($currentBandwidthBps >= 1000000) {
+            $currentBandwidthFormatted = round($currentBandwidthBps / 1000000, 1) . ' Mbps';
+        } elseif ($currentBandwidthBps >= 1000) {
+            $currentBandwidthFormatted = round($currentBandwidthBps / 1000, 1) . ' Kbps';
+        } else {
+            $currentBandwidthFormatted = $currentBandwidthBps > 0 ? round($currentBandwidthBps) . ' bps' : '0 Mbps';
+        }
+
+        $metrics = [
+            'online_users' => $onlineUsersCount,
+            'revenue_today' => $revenueToday,
+            'current_bandwidth' => $currentBandwidthFormatted,
+            'internet_status' => $internetStatus,
+            'router_cpu' => $routerCpu,
+            'router_memory' => $routerMemory,
+            'expired_sessions_today' => $expiredSessionsToday,
+        ];
+
+        return view('admin.dashboard', compact('transactions', 'status', 'time', 'search', 'metrics'));
     }
 
     public function analytics()

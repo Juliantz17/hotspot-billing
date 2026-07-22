@@ -3,6 +3,72 @@
 @section('title', 'Active Users & Transactions')
 
 @section('content')
+<!-- Live System Overview Metrics -->
+<div class="mb-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
+    <!-- Online Users -->
+    <div class="bg-white p-3.5 rounded-sm border border-gray-300 shadow-sm flex flex-col justify-between">
+        <div class="flex items-center justify-between">
+            <span class="text-[11px] font-bold uppercase text-gray-500 tracking-wider">Online Users</span>
+            <span class="inline-block w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span>
+        </div>
+        <div class="mt-2">
+            <span class="text-xl font-extrabold text-gray-900">🟢 {{ $metrics['online_users'] ?? 0 }}</span>
+        </div>
+    </div>
+
+    <!-- Today's Revenue -->
+    <div class="bg-white p-3.5 rounded-sm border border-gray-300 shadow-sm flex flex-col justify-between">
+        <span class="text-[11px] font-bold uppercase text-gray-500 tracking-wider">Today's Revenue</span>
+        <div class="mt-2">
+            <span class="text-base font-extrabold text-emerald-600">TZS {{ number_format($metrics['revenue_today'] ?? 0) }}</span>
+        </div>
+    </div>
+
+    <!-- Current Bandwidth -->
+    <div class="bg-white p-3.5 rounded-sm border border-gray-300 shadow-sm flex flex-col justify-between">
+        <span class="text-[11px] font-bold uppercase text-gray-500 tracking-wider">Bandwidth</span>
+        <div class="mt-2">
+            <span class="text-base font-bold text-blue-600">{{ $metrics['current_bandwidth'] ?? '0 Mbps' }}</span>
+        </div>
+    </div>
+
+    <!-- Internet Status -->
+    <div class="bg-white p-3.5 rounded-sm border border-gray-300 shadow-sm flex flex-col justify-between">
+        <span class="text-[11px] font-bold uppercase text-gray-500 tracking-wider">Internet Status</span>
+        <div class="mt-2">
+            @if(!empty($metrics['internet_status']))
+                <span class="inline-flex items-center text-xs font-bold text-green-700 bg-green-50 px-1.5 py-0.5 rounded border border-green-200">🟢 Online</span>
+            @else
+                <span class="inline-flex items-center text-xs font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-200">🔴 Offline</span>
+            @endif
+        </div>
+    </div>
+
+    <!-- Router CPU -->
+    <div class="bg-white p-3.5 rounded-sm border border-gray-300 shadow-sm flex flex-col justify-between">
+        <span class="text-[11px] font-bold uppercase text-gray-500 tracking-wider">Router CPU</span>
+        <div class="mt-2">
+            <span class="text-base font-bold text-purple-700">{{ $metrics['router_cpu'] ?? 'N/A' }}</span>
+        </div>
+    </div>
+
+    <!-- Router Memory -->
+    <div class="bg-white p-3.5 rounded-sm border border-gray-300 shadow-sm flex flex-col justify-between">
+        <span class="text-[11px] font-bold uppercase text-gray-500 tracking-wider">Router Memory</span>
+        <div class="mt-2">
+            <span class="text-base font-bold text-indigo-700">{{ $metrics['router_memory'] ?? 'N/A' }}</span>
+        </div>
+    </div>
+
+    <!-- Expired Sessions Today -->
+    <div class="bg-white p-3.5 rounded-sm border border-gray-300 shadow-sm flex flex-col justify-between">
+        <span class="text-[11px] font-bold uppercase text-gray-500 tracking-wider">Expired Today</span>
+        <div class="mt-2">
+            <span class="text-base font-extrabold text-gray-700">{{ $metrics['expired_sessions_today'] ?? 0 }}</span>
+        </div>
+    </div>
+</div>
+
 <div class="mb-6 bg-white border border-gray-300 shadow-sm p-4 rounded-sm flex flex-col md:flex-row md:justify-between md:items-center space-y-4 md:space-y-0">
     <div>
         <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wide">Filters</h3>
@@ -52,6 +118,7 @@
                 <tr>
                     <th class="px-4 py-2 border-r border-gray-600">ID / Date</th>
                     <th class="px-4 py-2 border-r border-gray-600">Phone</th>
+                    <th class="px-4 py-2 border-r border-gray-600">Package</th>
                     <th class="px-4 py-2 border-r border-gray-600">MAC Address</th>
                     <th class="px-4 py-2 border-r border-gray-600">Status</th>
                     <th class="px-4 py-2 border-r border-gray-600">Expires At</th>
@@ -66,6 +133,11 @@
                         <span class="text-gray-500">{{ \Carbon\Carbon::parse($txn->created_at)->format('Y-m-d H:i') }}</span>
                     </td>
                     <td class="px-4 py-2 font-medium">{{ $txn->phone_number }}</td>
+                    <td class="px-4 py-2">
+                        <span class="px-2 py-0.5 inline-flex text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded">
+                            {{ $txn->package_name ?? '-' }}
+                        </span>
+                    </td>
                     <td class="px-4 py-2 font-mono text-xs">{{ $txn->mac_address }}</td>
                     <td class="px-4 py-2">
                         @if($txn->status === 'SUCCESS')
@@ -112,7 +184,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="6" class="px-4 py-4 text-center text-gray-500 text-sm">No transactions found.</td>
+                    <td colspan="7" class="px-4 py-4 text-center text-gray-500 text-sm">No transactions found.</td>
                 </tr>
                 @endforelse
             </tbody>
