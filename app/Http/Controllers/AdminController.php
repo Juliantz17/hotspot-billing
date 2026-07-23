@@ -784,6 +784,8 @@ class AdminController extends Controller
             'hosts' => 0,
             'queues' => 0,
             'interfaces' => [],
+            'active_users' => [],
+            'queue_details' => [],
         ];
 
         try {
@@ -813,6 +815,31 @@ class AdminController extends Controller
                 'active_hotspot_users' => count($active),
                 'hosts' => count($hosts),
                 'queues' => count($queues),
+                'active_users' => collect($active)
+                    ->take(25)
+                    ->map(fn ($user) => [
+                        'user' => $user['user'] ?? '-',
+                        'address' => $user['address'] ?? '-',
+                        'mac_address' => $user['mac-address'] ?? '-',
+                        'uptime' => $user['uptime'] ?? '-',
+                        'idle_time' => $user['idle-time'] ?? '-',
+                        'bytes_in' => isset($user['bytes-in']) ? $this->formatBytes($user['bytes-in']) : '0 B',
+                        'bytes_out' => isset($user['bytes-out']) ? $this->formatBytes($user['bytes-out']) : '0 B',
+                    ])
+                    ->values()
+                    ->all(),
+                'queue_details' => collect($queues)
+                    ->take(25)
+                    ->map(fn ($queue) => [
+                        'name' => $queue['name'] ?? '-',
+                        'target' => $queue['target'] ?? '-',
+                        'max_limit' => $queue['max-limit'] ?? '-',
+                        'rate' => $queue['rate'] ?? '-',
+                        'bytes' => $queue['bytes'] ?? '0/0',
+                        'disabled' => ($queue['disabled'] ?? 'false') === 'true',
+                    ])
+                    ->values()
+                    ->all(),
                 'interfaces' => collect($interfaces)
                     ->take(8)
                     ->map(fn ($interface) => [

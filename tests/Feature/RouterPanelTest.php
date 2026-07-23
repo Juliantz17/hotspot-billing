@@ -28,13 +28,28 @@ class RouterPanelTest extends TestCase
             ]]);
 
             $mock->shouldReceive('query')->with('/ip/hotspot/active/print')->once()->andReturnSelf();
-            $mock->shouldReceive('read')->once()->andReturn([['user' => 'AA:BB']]);
+            $mock->shouldReceive('read')->once()->andReturn([[
+                'user' => 'AA:BB',
+                'address' => '192.168.88.23',
+                'mac-address' => 'AA:BB:CC:DD:EE:FF',
+                'uptime' => '10m',
+                'idle-time' => '1m',
+                'bytes-in' => '1024',
+                'bytes-out' => '2048',
+            ]]);
 
             $mock->shouldReceive('query')->with('/ip/hotspot/host/print')->once()->andReturnSelf();
             $mock->shouldReceive('read')->once()->andReturn([['mac-address' => 'AA:BB']]);
 
             $mock->shouldReceive('query')->with('/queue/simple/print')->once()->andReturnSelf();
-            $mock->shouldReceive('read')->once()->andReturn([['name' => 'RateLimit_AA:BB']]);
+            $mock->shouldReceive('read')->once()->andReturn([[
+                'name' => 'RateLimit_AA:BB',
+                'target' => '192.168.88.23/32',
+                'max-limit' => '2M/2M',
+                'rate' => '200k/500k',
+                'bytes' => '1024/2048',
+                'disabled' => 'false',
+            ]]);
 
             $mock->shouldReceive('query')->with('/interface/print')->once()->andReturnSelf();
             $mock->shouldReceive('read')->once()->andReturn([[
@@ -54,6 +69,10 @@ class RouterPanelTest extends TestCase
         $response->assertSee('1d2h3m');
         $response->assertSee('7.15.1');
         $response->assertSee('ether1');
+        $response->assertSee('192.168.88.23');
+        $response->assertSee('AA:BB:CC:DD:EE:FF');
+        $response->assertSee('RateLimit_AA:BB');
+        $response->assertSee('2M/2M');
     }
 
     public function test_router_snapshot_returns_offline_payload_when_router_is_unreachable()
