@@ -691,44 +691,45 @@ class AdminController extends Controller
         try {
             $routerClient = MikrotikService::getClient();
 
-            // 1. Query hosts table
+            $activeUsers = $routerClient->query('/ip/hotspot/active/print')->read();
             $hosts = $routerClient->query('/ip/hotspot/host/print')->read();
-
-            // 2. Query IP Bindings to get comments
             $bindings = $routerClient->query('/ip/hotspot/ip-binding/print')->read();
-            $bindingsMap = [];
-            foreach ($bindings as $b) {
-                if (! empty($b['mac-address'])) {
-                    $bindingsMap[strtolower($b['mac-address'])] = $b;
-                }
-            }
-
-            // 3. Query Simple Queues to get cumulative data usage
             $queues = $routerClient->query('/queue/simple/print')->read();
-            $queuesMap = [];
-            foreach ($queues as $q) {
-                // Name format is: RateLimit_AA:BB:CC:DD:EE:FF
-                if (! empty($q['name']) && strpos($q['name'], 'RateLimit_') === 0) {
-                    $mac = strtolower(substr($q['name'], 10));
-                    $queuesMap[$mac] = $q;
+
+            $hostsMap = [];
+            foreach ($hosts as $host) {
+                if (! empty($host['mac-address'])) {
+                    $hostsMap[strtolower($host['mac-address'])] = $host;
                 }
             }
 
-            // 4. Merge data
-            foreach ($hosts as $h) {
-                $mac = strtolower($h['mac-address'] ?? '');
+            $bindingsMap = [];
+            foreach ($bindings as $binding) {
+                if (! empty($binding['mac-address'])) {
+                    $bindingsMap[strtolower($binding['mac-address'])] = $binding;
+                }
+            }
+
+            $queuesMap = [];
+            foreach ($queues as $queue) {
+                if (! empty($queue['name']) && strpos($queue['name'], 'RateLimit_') === 0) {
+                    $mac = strtolower(substr($queue['name'], 10));
+                    $queuesMap[$mac] = $queue;
+                }
+            }
+
+            foreach ($activeUsers as $activeUser) {
+                $mac = strtolower($activeUser['mac-address'] ?? $activeUser['user'] ?? '');
                 if (empty($mac)) {
                     continue;
                 }
 
+                $host = $hostsMap[$mac] ?? null;
                 $binding = $bindingsMap[$mac] ?? null;
                 $queue = $queuesMap[$mac] ?? null;
-
-                $isBypassed = isset($h['bypassed']) && ($h['bypassed'] === 'true' || $h['bypassed'] === true);
-
-                // Queue bytes field format: "upload/download" (e.g. "12345/67890")
                 $queueUploadBytes = 0;
                 $queueDownloadBytes = 0;
+
                 if (! empty($queue['bytes'])) {
                     $parts = explode('/', $queue['bytes']);
                     if (count($parts) === 2) {
@@ -738,23 +739,22 @@ class AdminController extends Controller
                 }
 
                 $activeSessions[] = [
-                    '.id' => $h['.id'] ?? null,
-                    'user' => $h['mac-address'] ?? 'Unknown',
-                    'address' => $h['address'] ?? '-',
-                    'bypassed' => $isBypassed,
-                    'idle-time' => $h['idle-time'] ?? '-',
-                    'rx-rate' => $h['rx-rate'] ?? '-',
-                    'tx-rate' => $h['tx-rate'] ?? '-',
-
-                    // Session bytes
-                    'bytes-in' => $h['bytes-in'] ?? '0',
-                    'bytes-out' => $h['bytes-out'] ?? '0',
-
-                    // Cumulative Queue bytes (Package usage)
+                    '.id' => $activeUser['.id'] ?? null,
+                    'host_id' => $host['.id'] ?? null,
+                    'user' => $activeUser['user'] ?? $activeUser['mac-address'] ?? strtoupper($mac),
+                    'mac' => $activeUser['mac-address'] ?? ($host['mac-address'] ?? strtoupper($mac)),
+                    'address' => $activeUser['address'] ?? ($host['address'] ?? '-'),
+                    'host_address' => $host['address'] ?? '-',
+                    'host_seen' => $host !== null,
+                    'uptime' => $activeUser['uptime'] ?? '-',
+                    'idle-time' => $activeUser['idle-time'] ?? ($host['idle-time'] ?? '-'),
+                    'rx-rate' => $activeUser['rx-rate'] ?? ($host['rx-rate'] ?? '-'),
+                    'tx-rate' => $activeUser['tx-rate'] ?? ($host['tx-rate'] ?? '-'),
+                    'bytes-in' => $activeUser['bytes-in'] ?? '0',
+                    'bytes-out' => $activeUser['bytes-out'] ?? '0',
                     'queue-in' => $queueUploadBytes,
                     'queue-out' => $queueDownloadBytes,
-
-                    'comment' => $h['comment'] ?? ($binding['comment'] ?? '-'),
+                    'comment' => $activeUser['comment'] ?? ($host['comment'] ?? ($binding['comment'] ?? '-')),
                 ];
             }
         } catch (\Exception $e) {

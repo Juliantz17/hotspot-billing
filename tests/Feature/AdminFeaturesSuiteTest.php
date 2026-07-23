@@ -99,14 +99,14 @@ class AdminFeaturesSuiteTest extends TestCase
         $this->app->bind(RouterClient::class, function () {
             $mock = \Mockery::mock(RouterClient::class);
 
-            // Query 1: Host Print
-            $mock->shouldReceive('query')->with('/ip/hotspot/host/print')->once()->andReturnSelf();
+            $mock->shouldReceive('query')->with('/ip/hotspot/active/print')->once()->andReturnSelf();
             $mock->shouldReceive('read')->once()->andReturn([
                 [
-                    '.id' => '*1',
+                    '.id' => '*active1',
+                    'user' => 'AA:BB:CC:DD:EE:11',
                     'mac-address' => 'AA:BB:CC:DD:EE:11',
                     'address' => '192.168.88.254',
-                    'bypassed' => 'true',
+                    'uptime' => '00:20:00',
                     'idle-time' => '00:05:00',
                     'rx-rate' => '54kbps',
                     'tx-rate' => '128kbps',
@@ -115,7 +115,15 @@ class AdminFeaturesSuiteTest extends TestCase
                 ],
             ]);
 
-            // Query 2: Binding Print
+            $mock->shouldReceive('query')->with('/ip/hotspot/host/print')->once()->andReturnSelf();
+            $mock->shouldReceive('read')->once()->andReturn([
+                [
+                    '.id' => '*host1',
+                    'mac-address' => 'AA:BB:CC:DD:EE:11',
+                    'address' => '192.168.88.254',
+                ],
+            ]);
+
             $mock->shouldReceive('query')->with('/ip/hotspot/ip-binding/print')->once()->andReturnSelf();
             $mock->shouldReceive('read')->once()->andReturn([
                 [
@@ -124,12 +132,11 @@ class AdminFeaturesSuiteTest extends TestCase
                 ],
             ]);
 
-            // Query 3: Queue Print
             $mock->shouldReceive('query')->with('/queue/simple/print')->once()->andReturnSelf();
             $mock->shouldReceive('read')->once()->andReturn([
                 [
                     'name' => 'RateLimit_AA:BB:CC:DD:EE:11',
-                    'bytes' => '2097152/4194304', // 2 MB / 4 MB
+                    'bytes' => '2097152/4194304',
                 ],
             ]);
 
@@ -142,12 +149,14 @@ class AdminFeaturesSuiteTest extends TestCase
         $response->assertStatus(200);
         $response->assertSee('AA:BB:CC:DD:EE:11');
         $response->assertSee('192.168.88.254');
-        $response->assertSee('Bypassed (Active)');
+        $response->assertSee('Authenticated');
+        $response->assertSee('Host Seen');
         $response->assertSee('54kbps / 128kbps');
-        $response->assertSee('500 KB'); // current session upload
-        $response->assertSee('1 MB');   // current session download
-        $response->assertSee('2 MB');   // cumulative upload
-        $response->assertSee('4 MB');   // cumulative download
+        $response->assertSee('00:20:00');
+        $response->assertSee('500 KB');
+        $response->assertSee('1 MB');
+        $response->assertSee('2 MB');
+        $response->assertSee('4 MB');
         $response->assertSee('Test active session comment');
     }
 
