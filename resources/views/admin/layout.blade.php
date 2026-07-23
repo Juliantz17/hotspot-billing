@@ -39,8 +39,19 @@
         }
 
         .admin-sidebar h1,
-        .admin-sidebar button {
+        .admin-sidebar .menu-toggle {
             color: #ffffff;
+        }
+
+        .admin-sidebar .logout-button {
+            background: rgba(255,255,255,.96);
+            color: #111827;
+            border-color: rgba(255,255,255,.28);
+        }
+
+        .admin-sidebar .logout-button:hover {
+            background: #ffffff;
+            color: #000000;
         }
 
         .sidebar-link {
@@ -96,7 +107,7 @@
     <div class="admin-sidebar w-full md:w-64 flex flex-col md:h-full shrink-0">
         <div class="p-4 border-b border-gray-200 flex justify-between items-center">
             <h1 class="text-[13px] font-semibold text-gray-950 tracking-normal">Hotspot Admin</h1>
-            <button class="md:hidden text-gray-700" onclick="document.getElementById('mobile-menu').classList.toggle('hidden')" aria-label="Toggle navigation">
+            <button class="menu-toggle md:hidden" onclick="document.getElementById('mobile-menu').classList.toggle('hidden')" aria-label="Toggle navigation">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
             </button>
         </div>
@@ -140,7 +151,7 @@
             <div class="mt-auto p-4 border-t border-gray-200">
                 <form method="POST" action="{{ route('admin.logout') }}">
                     @csrf
-                    <button type="submit" class="w-full bg-white hover:bg-gray-50 text-gray-800 text-sm py-2 px-3 rounded-lg font-medium border border-gray-200 shadow-sm">Log Out</button>
+                    <button type="submit" class="logout-button w-full text-sm py-2 px-3 rounded-lg font-medium border shadow-sm">Log Out</button>
                 </form>
             </div>
         </div>
@@ -205,4 +216,5 @@
     </script>
 </body>
 </html>
+
 
