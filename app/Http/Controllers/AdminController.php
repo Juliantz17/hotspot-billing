@@ -2,12 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\WifiPaymentSuccess;
+use App\Services\MikrotikService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use RouterOS\Config;
-use RouterOS\Client as RouterClient;
-use Carbon\Carbon;
+use RouterOS\Client;
 
 class AdminController extends Controller
 {
@@ -22,17 +23,17 @@ class AdminController extends Controller
         // Apply status filter
         if ($status === 'active') {
             $query->where('status', 'SUCCESS')
-                  ->where('expires_at', '>', Carbon::now());
+                ->where('expires_at', '>', Carbon::now());
         } elseif ($status === 'pending') {
             $query->where('status', 'PENDING');
         } elseif ($status === 'failed') {
             $query->where('status', 'FAILED');
         } elseif ($status === 'expired') {
             $query->where('status', 'SUCCESS')
-                  ->where(function ($q) {
-                      $q->where('expires_at', '<=', Carbon::now())
+                ->where(function ($q) {
+                    $q->where('expires_at', '<=', Carbon::now())
                         ->orWhereNull('expires_at');
-                  });
+                });
         }
 
         // Apply time filter
@@ -51,11 +52,11 @@ class AdminController extends Controller
         }
 
         // Apply search filter
-        if (!empty($search)) {
+        if (! empty($search)) {
             $query->where(function ($q) use ($search) {
-                $q->where('transaction_id', 'like', '%' . $search . '%')
-                  ->orWhere('phone_number', 'like', '%' . $search . '%')
-                  ->orWhere('mac_address', 'like', '%' . $search . '%');
+                $q->where('transaction_id', 'like', '%'.$search.'%')
+                    ->orWhere('phone_number', 'like', '%'.$search.'%')
+                    ->orWhere('mac_address', 'like', '%'.$search.'%');
             });
         }
 
@@ -75,11 +76,11 @@ class AdminController extends Controller
                 $txn->package_name = $matchingPkg->name;
             } else {
                 if ($txn->duration_minutes < 60) {
-                    $txn->package_name = $txn->duration_minutes . ' Min';
+                    $txn->package_name = $txn->duration_minutes.' Min';
                 } elseif ($txn->duration_minutes < 1440) {
-                    $txn->package_name = round($txn->duration_minutes / 60, 1) . ' Hr';
+                    $txn->package_name = round($txn->duration_minutes / 60, 1).' Hr';
                 } else {
-                    $txn->package_name = round($txn->duration_minutes / 1440, 1) . ' Day';
+                    $txn->package_name = round($txn->duration_minutes / 1440, 1).' Day';
                 }
             }
         }
@@ -119,34 +120,34 @@ class AdminController extends Controller
         $currentBandwidthBps = 0;
 
         try {
-            if (!app()->environment('testing') || app()->bound(\RouterOS\Client::class)) {
-                $routerClient = \App\Services\MikrotikService::getClient();
-                
+            if (! app()->environment('testing') || app()->bound(Client::class)) {
+                $routerClient = MikrotikService::getClient();
+
                 // Check Router Identity & Connection
                 $identity = $routerClient->query('/system/identity/print')->read();
-                if (!empty($identity)) {
+                if (! empty($identity)) {
                     $internetStatus = true;
                 }
 
                 // Query System Resource for CPU and Memory
                 $resource = $routerClient->query('/system/resource/print')->read();
-                if (!empty($resource[0])) {
+                if (! empty($resource[0])) {
                     $res = $resource[0];
                     if (isset($res['cpu-load'])) {
-                        $routerCpu = $res['cpu-load'] . '%';
+                        $routerCpu = $res['cpu-load'].'%';
                     }
                     if (isset($res['total-memory']) && isset($res['free-memory'])) {
                         $tot = floatval($res['total-memory']);
                         $free = floatval($res['free-memory']);
                         if ($tot > 0) {
-                            $routerMemory = round((($tot - $free) / $tot) * 100) . '%';
+                            $routerMemory = round((($tot - $free) / $tot) * 100).'%';
                         }
                     }
                 }
 
                 // Query Hotspot Active Users & Hosts
                 $activeHosts = $routerClient->query('/ip/hotspot/host/print')->read();
-                if (!empty($activeHosts)) {
+                if (! empty($activeHosts)) {
                     $onlineUsersCount = max(count($activeHosts), $activeDbUsersCount);
                     foreach ($activeHosts as $h) {
                         $rxRate = floatval($h['rx-rate'] ?? 0);
@@ -158,9 +159,9 @@ class AdminController extends Controller
                 // Query Simple Queues for rate calculation if host rates are zero
                 if ($currentBandwidthBps == 0) {
                     $queues = $routerClient->query('/queue/simple/print')->read();
-                    if (!empty($queues)) {
+                    if (! empty($queues)) {
                         foreach ($queues as $q) {
-                            if (!empty($q['rate'])) {
+                            if (! empty($q['rate'])) {
                                 $parts = explode('/', $q['rate']);
                                 if (count($parts) === 2) {
                                     $currentBandwidthBps += (floatval($parts[0]) + floatval($parts[1]));
@@ -176,17 +177,17 @@ class AdminController extends Controller
 
         // Format Bandwidth nicely
         if ($currentBandwidthBps >= 1000000) {
-            $currentBandwidthFormatted = round($currentBandwidthBps / 1000000, 1) . ' Mbps';
+            $currentBandwidthFormatted = round($currentBandwidthBps / 1000000, 1).' Mbps';
         } elseif ($currentBandwidthBps >= 1000) {
-            $currentBandwidthFormatted = round($currentBandwidthBps / 1000, 1) . ' Kbps';
+            $currentBandwidthFormatted = round($currentBandwidthBps / 1000, 1).' Kbps';
         } else {
-            $currentBandwidthFormatted = $currentBandwidthBps > 0 ? round($currentBandwidthBps) . ' bps' : '0 Mbps';
+            $currentBandwidthFormatted = $currentBandwidthBps > 0 ? round($currentBandwidthBps).' bps' : '0 Mbps';
         }
 
         return [
             'online_users' => $onlineUsersCount,
             'revenue_today' => $revenueToday,
-            'revenue_today_formatted' => 'TZS ' . number_format($revenueToday),
+            'revenue_today_formatted' => 'TZS '.number_format($revenueToday),
             'current_bandwidth' => $currentBandwidthFormatted,
             'internet_status' => $internetStatus,
             'router_cpu' => $routerCpu,
@@ -208,7 +209,7 @@ class AdminController extends Controller
         // Compute summary metrics
         $totalVisits = DB::table('checkout_visits')->count();
         $uniqueVisits = DB::table('checkout_visits')->distinct('mac_address')->count('mac_address');
-        
+
         $totalPaid = DB::table('hotspot_transactions')
             ->where('status', 'SUCCESS')
             ->count();
@@ -306,8 +307,8 @@ class AdminController extends Controller
                 return $pkg->duration_minutes == $p->duration_minutes && $pkg->price == $p->amount;
             });
 
-            $pkgName = $matchingPkg ? $matchingPkg->name : ($p->duration_minutes . ' Min (' . number_format($p->amount) . ' TZS)');
-            
+            $pkgName = $matchingPkg ? $matchingPkg->name : ($p->duration_minutes.' Min ('.number_format($p->amount).' TZS)');
+
             $packagePopularity[] = [
                 'name' => $pkgName,
                 'duration_minutes' => $p->duration_minutes,
@@ -325,11 +326,11 @@ class AdminController extends Controller
         // Average Data Used Per Customer
         $avgDataUsedFormatted = 'N/A';
         try {
-            if (!app()->environment('testing') || app()->bound(\RouterOS\Client::class)) {
-                $routerClient = \App\Services\MikrotikService::getClient();
+            if (! app()->environment('testing') || app()->bound(Client::class)) {
+                $routerClient = MikrotikService::getClient();
                 $hosts = $routerClient->query('/ip/hotspot/host/print')->read();
                 $queues = $routerClient->query('/queue/simple/print')->read();
-                
+
                 $totalBytes = 0;
                 $userCount = 0;
 
@@ -341,10 +342,10 @@ class AdminController extends Controller
                         $userCount++;
                     }
                 }
-                
-                if ($userCount == 0 && !empty($queues)) {
+
+                if ($userCount == 0 && ! empty($queues)) {
                     foreach ($queues as $q) {
-                        if (!empty($q['bytes'])) {
+                        if (! empty($q['bytes'])) {
                             $parts = explode('/', $q['bytes']);
                             if (count($parts) === 2) {
                                 $uBytes = floatval($parts[0]);
@@ -393,21 +394,21 @@ class AdminController extends Controller
         for ($i = 6; $i >= 0; $i--) {
             $date = Carbon::now()->subDays($i)->format('Y-m-d');
             $label = Carbon::now()->subDays($i)->format('M d');
-            
+
             $dayVisits = $dailyVisits[$date] ?? 0;
             $dayPayments = $dailyPayments[$date] ?? 0;
             $rate = $dayVisits > 0 ? round(($dayPayments / $dayVisits) * 100, 1) : 0;
-            
+
             $chartLabels[] = $label;
             $chartRates[] = $rate;
         }
 
         return view('admin.analytics', compact(
-            'visits', 
-            'totalVisits', 
-            'uniqueVisits', 
-            'totalPaid', 
-            'uniquePaid', 
+            'visits',
+            'totalVisits',
+            'uniqueVisits',
+            'totalPaid',
+            'uniquePaid',
             'conversionRate',
             'chartLabels',
             'chartRates',
@@ -430,18 +431,19 @@ class AdminController extends Controller
     private function formatBytes($bytes, $precision = 2)
     {
         $bytes = floatval($bytes);
-        $units = array('B', 'KB', 'MB', 'GB', 'TB');
+        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
         $bytes = max($bytes, 0);
         $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
         $pow = min($pow, count($units) - 1);
         $bytes /= pow(1024, $pow);
-        return round($bytes, $precision) . ' ' . $units[$pow];
+
+        return round($bytes, $precision).' '.$units[$pow];
     }
 
     public function earnings(Request $request)
     {
         $filter = $request->query('filter', 'today');
-        
+
         $query = DB::table('hotspot_transactions')->where('status', 'SUCCESS');
 
         if ($filter === 'today') {
@@ -460,7 +462,7 @@ class AdminController extends Controller
 
         $totalEarnings = clone $query;
         $totalEarnings = $totalEarnings->sum('amount');
-        
+
         $transactionCount = clone $query;
         $transactionCount = $transactionCount->count();
 
@@ -472,11 +474,11 @@ class AdminController extends Controller
     public function extend(Request $request, $id)
     {
         $request->validate([
-            'extend_hours' => 'required|numeric|min:1'
+            'extend_hours' => 'required|numeric|min:1',
         ]);
 
         $txn = DB::table('hotspot_transactions')->where('id', $id)->first();
-        if (!$txn || $txn->status !== 'SUCCESS') {
+        if (! $txn || $txn->status !== 'SUCCESS') {
             return back()->withErrors(['error' => 'Can only extend active (SUCCESS) transactions.']);
         }
 
@@ -493,35 +495,35 @@ class AdminController extends Controller
     public function kick($id)
     {
         $txn = DB::table('hotspot_transactions')->where('id', $id)->first();
-        
-        if (!$txn || $txn->status !== 'SUCCESS') {
+
+        if (! $txn || $txn->status !== 'SUCCESS') {
             return back()->withErrors(['error' => 'User is not currently active.']);
         }
 
         try {
-            $routerClient = \App\Services\MikrotikService::getClient();
+            $routerClient = MikrotikService::getClient();
 
             $bindings = $routerClient->query([
                 '/ip/hotspot/ip-binding/print',
-                '?mac-address=' . $txn->mac_address
+                '?mac-address='.$txn->mac_address,
             ])->read();
 
-            if (!empty($bindings)) {
+            if (! empty($bindings)) {
                 $routerClient->query([
                     '/ip/hotspot/ip-binding/remove',
-                    '=.id=' . $bindings[0]['.id']
+                    '=.id='.$bindings[0]['.id'],
                 ])->read();
             }
 
             $queues = $routerClient->query([
                 '/queue/simple/print',
-                '?name=RateLimit_' . $txn->mac_address
+                '?name=RateLimit_'.$txn->mac_address,
             ])->read();
 
-            if (!empty($queues)) {
+            if (! empty($queues)) {
                 $routerClient->query([
                     '/queue/simple/remove',
-                    '=.id=' . $queues[0]['.id']
+                    '=.id='.$queues[0]['.id'],
                 ])->read();
             }
 
@@ -535,7 +537,8 @@ class AdminController extends Controller
             return back()->with('success', 'User has been kicked out of the network.');
 
         } catch (\Exception $e) {
-            Log::error("Admin kick failed: " . $e->getMessage());
+            Log::error('Admin kick failed: '.$e->getMessage());
+
             return back()->withErrors(['error' => 'Failed to connect to router to kick user.']);
         }
     }
@@ -543,11 +546,12 @@ class AdminController extends Controller
     public function destroyTxn($id)
     {
         $txn = DB::table('hotspot_transactions')->where('id', $id)->first();
-        if (!$txn || $txn->status === 'SUCCESS') {
+        if (! $txn || $txn->status === 'SUCCESS') {
             return back()->withErrors(['error' => 'Cannot delete successful transactions.']);
         }
-        
+
         DB::table('hotspot_transactions')->where('id', $id)->delete();
+
         return back()->with('success', 'Transaction deleted successfully.');
     }
 
@@ -555,7 +559,7 @@ class AdminController extends Controller
     {
         $pendingTxn = DB::table('hotspot_transactions')->where('id', $id)->first();
 
-        if (!$pendingTxn || $pendingTxn->status !== 'PENDING') {
+        if (! $pendingTxn || $pendingTxn->status !== 'PENDING') {
             return back()->withErrors(['error' => 'Can only reconnect from PENDING transactions.']);
         }
 
@@ -567,7 +571,7 @@ class AdminController extends Controller
             ->latest()
             ->first();
 
-        if (!$activeTxn) {
+        if (! $activeTxn) {
             return back()->withErrors(['error' => 'No active package found for this phone number.']);
         }
 
@@ -579,42 +583,42 @@ class AdminController extends Controller
 
         // Kick the old MAC address
         try {
-            $routerClient = \App\Services\MikrotikService::getClient();
+            $routerClient = MikrotikService::getClient();
 
             $macsToClear = [
                 strtolower($activeTxn->mac_address),
-                strtoupper($activeTxn->mac_address)
+                strtoupper($activeTxn->mac_address),
             ];
 
             foreach ($macsToClear as $macTarget) {
-                $activeUsers = $routerClient->query(['/ip/hotspot/active/print', '?mac-address=' . $macTarget])->read();
+                $activeUsers = $routerClient->query(['/ip/hotspot/active/print', '?mac-address='.$macTarget])->read();
                 foreach ($activeUsers as $user) {
-                    $routerClient->query(['/ip/hotspot/active/remove', '=.id=' . $user['.id']])->read();
+                    $routerClient->query(['/ip/hotspot/active/remove', '=.id='.$user['.id']])->read();
                 }
 
-                $hotspotUsers = $routerClient->query(['/ip/hotspot/user/print', '?name=' . $macTarget])->read();
+                $hotspotUsers = $routerClient->query(['/ip/hotspot/user/print', '?name='.$macTarget])->read();
                 foreach ($hotspotUsers as $user) {
-                    $routerClient->query(['/ip/hotspot/user/remove', '=.id=' . $user['.id']])->read();
+                    $routerClient->query(['/ip/hotspot/user/remove', '=.id='.$user['.id']])->read();
                 }
 
-                $cookies = $routerClient->query(['/ip/hotspot/cookie/print', '?mac-address=' . $macTarget])->read();
+                $cookies = $routerClient->query(['/ip/hotspot/cookie/print', '?mac-address='.$macTarget])->read();
                 foreach ($cookies as $cookie) {
-                    $routerClient->query(['/ip/hotspot/cookie/remove', '=.id=' . $cookie['.id']])->read();
+                    $routerClient->query(['/ip/hotspot/cookie/remove', '=.id='.$cookie['.id']])->read();
                 }
 
-                $bindings = $routerClient->query(['/ip/hotspot/ip-binding/print', '?mac-address=' . $macTarget])->read();
+                $bindings = $routerClient->query(['/ip/hotspot/ip-binding/print', '?mac-address='.$macTarget])->read();
                 foreach ($bindings as $b) {
-                    $routerClient->query(['/ip/hotspot/ip-binding/remove', '=.id=' . $b['.id']])->read();
+                    $routerClient->query(['/ip/hotspot/ip-binding/remove', '=.id='.$b['.id']])->read();
                 }
 
-                $queues = $routerClient->query(['/queue/simple/print', '?name=RateLimit_' . $macTarget])->read();
+                $queues = $routerClient->query(['/queue/simple/print', '?name=RateLimit_'.$macTarget])->read();
                 foreach ($queues as $q) {
-                    $routerClient->query(['/queue/simple/remove', '=.id=' . $q['.id']])->read();
+                    $routerClient->query(['/queue/simple/remove', '=.id='.$q['.id']])->read();
                 }
 
-                $hosts = $routerClient->query(['/ip/hotspot/host/print', '?mac-address=' . $macTarget])->read();
+                $hosts = $routerClient->query(['/ip/hotspot/host/print', '?mac-address='.$macTarget])->read();
                 foreach ($hosts as $h) {
-                    $routerClient->query(['/ip/hotspot/host/remove', '=.id=' . $h['.id']])->read();
+                    $routerClient->query(['/ip/hotspot/host/remove', '=.id='.$h['.id']])->read();
                 }
             }
         } catch (\Exception $e) {
@@ -625,7 +629,7 @@ class AdminController extends Controller
             // Expire the old transaction
             DB::table('hotspot_transactions')->where('id', $activeTxn->id)->update([
                 'expires_at' => now(),
-                'updated_at' => now()
+                'updated_at' => now(),
             ]);
 
             // Activate the new transaction
@@ -633,15 +637,15 @@ class AdminController extends Controller
                 'status' => 'SUCCESS',
                 'duration_minutes' => $remainingMinutes,
                 'expires_at' => now()->addMinutes($remainingMinutes),
-                'updated_at' => now()
+                'updated_at' => now(),
             ]);
         });
 
         // Fetch updated transaction and trigger provision
         $updatedTxn = DB::table('hotspot_transactions')->where('id', $pendingTxn->id)->first();
-        event(new \App\Events\WifiPaymentSuccess($updatedTxn));
+        event(new WifiPaymentSuccess($updatedTxn));
 
-        return back()->with('success', 'User device reconnected successfully for ' . $remainingMinutes . ' minutes.');
+        return back()->with('success', 'User device reconnected successfully for '.$remainingMinutes.' minutes.');
     }
 
     public function activeSessions()
@@ -649,16 +653,16 @@ class AdminController extends Controller
         $activeSessions = [];
         $error = null;
         try {
-            $routerClient = \App\Services\MikrotikService::getClient();
-            
+            $routerClient = MikrotikService::getClient();
+
             // 1. Query hosts table
             $hosts = $routerClient->query('/ip/hotspot/host/print')->read();
-            
+
             // 2. Query IP Bindings to get comments
             $bindings = $routerClient->query('/ip/hotspot/ip-binding/print')->read();
             $bindingsMap = [];
             foreach ($bindings as $b) {
-                if (!empty($b['mac-address'])) {
+                if (! empty($b['mac-address'])) {
                     $bindingsMap[strtolower($b['mac-address'])] = $b;
                 }
             }
@@ -668,7 +672,7 @@ class AdminController extends Controller
             $queuesMap = [];
             foreach ($queues as $q) {
                 // Name format is: RateLimit_AA:BB:CC:DD:EE:FF
-                if (!empty($q['name']) && strpos($q['name'], 'RateLimit_') === 0) {
+                if (! empty($q['name']) && strpos($q['name'], 'RateLimit_') === 0) {
                     $mac = strtolower(substr($q['name'], 10));
                     $queuesMap[$mac] = $q;
                 }
@@ -677,17 +681,19 @@ class AdminController extends Controller
             // 4. Merge data
             foreach ($hosts as $h) {
                 $mac = strtolower($h['mac-address'] ?? '');
-                if (empty($mac)) continue;
+                if (empty($mac)) {
+                    continue;
+                }
 
                 $binding = $bindingsMap[$mac] ?? null;
                 $queue = $queuesMap[$mac] ?? null;
-                
+
                 $isBypassed = isset($h['bypassed']) && ($h['bypassed'] === 'true' || $h['bypassed'] === true);
 
                 // Queue bytes field format: "upload/download" (e.g. "12345/67890")
                 $queueUploadBytes = 0;
                 $queueDownloadBytes = 0;
-                if (!empty($queue['bytes'])) {
+                if (! empty($queue['bytes'])) {
                     $parts = explode('/', $queue['bytes']);
                     if (count($parts) === 2) {
                         $queueUploadBytes = floatval($parts[0]);
@@ -703,11 +709,11 @@ class AdminController extends Controller
                     'idle-time' => $h['idle-time'] ?? '-',
                     'rx-rate' => $h['rx-rate'] ?? '-',
                     'tx-rate' => $h['tx-rate'] ?? '-',
-                    
+
                     // Session bytes
                     'bytes-in' => $h['bytes-in'] ?? '0',
                     'bytes-out' => $h['bytes-out'] ?? '0',
-                    
+
                     // Cumulative Queue bytes (Package usage)
                     'queue-in' => $queueUploadBytes,
                     'queue-out' => $queueDownloadBytes,
@@ -716,7 +722,7 @@ class AdminController extends Controller
                 ];
             }
         } catch (\Exception $e) {
-            $error = "Failed to connect to MikroTik router: " . $e->getMessage();
+            $error = 'Failed to connect to MikroTik router: '.$e->getMessage();
         }
 
         return view('admin.active_sessions', compact('activeSessions', 'error'));
@@ -725,19 +731,112 @@ class AdminController extends Controller
     public function kickActiveSession($id)
     {
         try {
-            $routerClient = \App\Services\MikrotikService::getClient();
-            $routerClient->query(['/ip/hotspot/host/remove', '=.id=' . $id])->read();
+            $routerClient = MikrotikService::getClient();
+            $routerClient->query(['/ip/hotspot/host/remove', '=.id='.$id])->read();
+
             return back()->with('success', 'Host connection removed successfully.');
         } catch (\Exception $e) {
-            return back()->withErrors(['error' => 'Failed to remove host connection: ' . $e->getMessage()]);
+            return back()->withErrors(['error' => 'Failed to remove host connection: '.$e->getMessage()]);
+        }
+    }
+
+    public function routerPanel()
+    {
+        return view('admin.router', [
+            'router' => $this->getRouterSnapshot(),
+        ]);
+    }
+
+    public function routerSnapshot()
+    {
+        return response()->json($this->getRouterSnapshot());
+    }
+
+    public function rebootRouter(Request $request)
+    {
+        try {
+            $routerClient = MikrotikService::getClient();
+            $routerClient->query('/system/reboot')->read();
+
+            Log::warning('Admin requested MikroTik router reboot.');
+
+            return back()->with('success', 'Router reboot command sent. It may take a few minutes to come back online.');
+        } catch (\Exception $e) {
+            Log::error('Router reboot failed: '.$e->getMessage());
+
+            return back()->withErrors(['error' => 'Could not reboot router: '.$e->getMessage()]);
+        }
+    }
+
+    private function getRouterSnapshot(): array
+    {
+        $snapshot = [
+            'online' => false,
+            'error' => null,
+            'identity' => 'N/A',
+            'version' => 'N/A',
+            'uptime' => 'N/A',
+            'cpu_load' => 'N/A',
+            'memory_used' => 'N/A',
+            'free_memory' => 'N/A',
+            'total_memory' => 'N/A',
+            'active_hotspot_users' => 0,
+            'hosts' => 0,
+            'queues' => 0,
+            'interfaces' => [],
+        ];
+
+        try {
+            $routerClient = MikrotikService::getClient();
+
+            $identity = $routerClient->query('/system/identity/print')->read();
+            $resource = $routerClient->query('/system/resource/print')->read();
+            $active = $routerClient->query('/ip/hotspot/active/print')->read();
+            $hosts = $routerClient->query('/ip/hotspot/host/print')->read();
+            $queues = $routerClient->query('/queue/simple/print')->read();
+            $interfaces = $routerClient->query('/interface/print')->read();
+
+            $resourceRow = $resource[0] ?? [];
+            $totalMemory = (float) ($resourceRow['total-memory'] ?? 0);
+            $freeMemory = (float) ($resourceRow['free-memory'] ?? 0);
+            $usedMemoryPercent = $totalMemory > 0 ? round((($totalMemory - $freeMemory) / $totalMemory) * 100).'%' : 'N/A';
+
+            return array_merge($snapshot, [
+                'online' => true,
+                'identity' => $identity[0]['name'] ?? 'MikroTik',
+                'version' => $resourceRow['version'] ?? 'N/A',
+                'uptime' => $resourceRow['uptime'] ?? 'N/A',
+                'cpu_load' => isset($resourceRow['cpu-load']) ? $resourceRow['cpu-load'].'%' : 'N/A',
+                'memory_used' => $usedMemoryPercent,
+                'free_memory' => isset($resourceRow['free-memory']) ? $this->formatBytes($resourceRow['free-memory']) : 'N/A',
+                'total_memory' => isset($resourceRow['total-memory']) ? $this->formatBytes($resourceRow['total-memory']) : 'N/A',
+                'active_hotspot_users' => count($active),
+                'hosts' => count($hosts),
+                'queues' => count($queues),
+                'interfaces' => collect($interfaces)
+                    ->take(8)
+                    ->map(fn ($interface) => [
+                        'name' => $interface['name'] ?? '-',
+                        'type' => $interface['type'] ?? '-',
+                        'running' => ($interface['running'] ?? 'false') === 'true',
+                        'disabled' => ($interface['disabled'] ?? 'false') === 'true',
+                    ])
+                    ->values()
+                    ->all(),
+            ]);
+        } catch (\Exception $e) {
+            $snapshot['error'] = $e->getMessage();
+
+            return $snapshot;
         }
     }
 
     public function routerStatus()
     {
         try {
-            $routerClient = \App\Services\MikrotikService::getClient();
+            $routerClient = MikrotikService::getClient();
             $routerClient->query('/system/identity/print')->read();
+
             return response()->json(['online' => true]);
         } catch (\Exception $e) {
             return response()->json(['online' => false, 'error' => $e->getMessage()]);

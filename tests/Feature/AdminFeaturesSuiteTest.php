@@ -2,9 +2,9 @@
 
 namespace Tests\Feature;
 
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
 use RouterOS\Client as RouterClient;
 use Tests\TestCase;
 
@@ -66,6 +66,7 @@ class AdminFeaturesSuiteTest extends TestCase
             $mock = \Mockery::mock(RouterClient::class);
             $mock->shouldReceive('query')->with('/system/identity/print')->once()->andReturnSelf();
             $mock->shouldReceive('read')->once()->andReturn([['name' => 'MikroTik']]);
+
             return $mock;
         });
 
@@ -82,6 +83,7 @@ class AdminFeaturesSuiteTest extends TestCase
         $this->app->bind(RouterClient::class, function () {
             $mock = \Mockery::mock(RouterClient::class);
             $mock->shouldReceive('query')->with('/system/identity/print')->once()->andThrow(new \Exception('Connection refused'));
+
             return $mock;
         });
 
@@ -96,7 +98,7 @@ class AdminFeaturesSuiteTest extends TestCase
     {
         $this->app->bind(RouterClient::class, function () {
             $mock = \Mockery::mock(RouterClient::class);
-            
+
             // Query 1: Host Print
             $mock->shouldReceive('query')->with('/ip/hotspot/host/print')->once()->andReturnSelf();
             $mock->shouldReceive('read')->once()->andReturn([
@@ -110,7 +112,7 @@ class AdminFeaturesSuiteTest extends TestCase
                     'tx-rate' => '128kbps',
                     'bytes-in' => '512000',
                     'bytes-out' => '1048576',
-                ]
+                ],
             ]);
 
             // Query 2: Binding Print
@@ -118,8 +120,8 @@ class AdminFeaturesSuiteTest extends TestCase
             $mock->shouldReceive('read')->once()->andReturn([
                 [
                     'mac-address' => 'AA:BB:CC:DD:EE:11',
-                    'comment' => 'Test active session comment'
-                ]
+                    'comment' => 'Test active session comment',
+                ],
             ]);
 
             // Query 3: Queue Print
@@ -127,8 +129,8 @@ class AdminFeaturesSuiteTest extends TestCase
             $mock->shouldReceive('read')->once()->andReturn([
                 [
                     'name' => 'RateLimit_AA:BB:CC:DD:EE:11',
-                    'bytes' => '2097152/4194304' // 2 MB / 4 MB
-                ]
+                    'bytes' => '2097152/4194304', // 2 MB / 4 MB
+                ],
             ]);
 
             return $mock;
@@ -155,6 +157,7 @@ class AdminFeaturesSuiteTest extends TestCase
             $mock = \Mockery::mock(RouterClient::class);
             $mock->shouldReceive('query')->with(['/ip/hotspot/host/remove', '=.id=*1'])->once()->andReturnSelf();
             $mock->shouldReceive('read')->once()->andReturn([]);
+
             return $mock;
         });
 

@@ -1,8 +1,10 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\HotspotController;
+use App\Http\Controllers\Admin\PackageController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\HotspotController;
+use Illuminate\Support\Facades\Route;
 
 // The URL customers are dropped onto from the MikroTik network
 Route::get('/checkout', [HotspotController::class, 'showCheckout'])->name('hotspot.checkout');
@@ -19,22 +21,25 @@ Route::get('/waiting/{txn}', [HotspotController::class, 'showWaiting'])->name('h
 Route::post('/webhook/selcom', [HotspotController::class, 'handleWebhook'])->name('webhook.selcom');
 
 // Admin Auth
-Route::get('/admin/login', [\App\Http\Controllers\AuthController::class, 'showLogin'])->name('admin.login');
-Route::post('/admin/login', [\App\Http\Controllers\AuthController::class, 'processLogin'])->name('admin.login.submit');
-Route::post('/admin/logout', [\App\Http\Controllers\AuthController::class, 'logout'])->name('admin.logout');
+Route::get('/admin/login', [AuthController::class, 'showLogin'])->name('admin.login');
+Route::post('/admin/login', [AuthController::class, 'processLogin'])->name('admin.login.submit');
+Route::post('/admin/logout', [AuthController::class, 'logout'])->name('admin.logout');
 
 // Admin Dashboard & Features
 Route::middleware(['admin'])->prefix('admin')->group(function () {
     Route::get('/', [AdminController::class, 'index'])->name('admin.dashboard');
     Route::get('/earnings', [AdminController::class, 'earnings'])->name('admin.earnings');
     Route::get('/analytics', [AdminController::class, 'analytics'])->name('admin.analytics');
-    
+
     // Active Sessions & Router status
     Route::get('/active-sessions', [AdminController::class, 'activeSessions'])->name('admin.active_sessions');
     Route::post('/active-sessions/{id}/kick', [AdminController::class, 'kickActiveSession'])->name('admin.active_sessions.kick');
+    Route::get('/router', [AdminController::class, 'routerPanel'])->name('admin.router');
     Route::get('/router-status', [AdminController::class, 'routerStatus'])->name('admin.router_status');
+    Route::get('/router-snapshot', [AdminController::class, 'routerSnapshot'])->name('admin.router_snapshot');
+    Route::post('/router/reboot', [AdminController::class, 'rebootRouter'])->name('admin.router_reboot');
     Route::get('/live-metrics', [AdminController::class, 'liveMetrics'])->name('admin.live_metrics');
-    
+
     // User management
     Route::post('/transactions/{id}/extend', [AdminController::class, 'extend'])->name('admin.extend');
     Route::post('/transactions/{id}/kick', [AdminController::class, 'kick'])->name('admin.kick');
@@ -42,8 +47,8 @@ Route::middleware(['admin'])->prefix('admin')->group(function () {
     Route::delete('/transactions/{id}', [AdminController::class, 'destroyTxn'])->name('admin.txn.destroy');
 
     // Packages
-    Route::get('/packages', [\App\Http\Controllers\Admin\PackageController::class, 'index'])->name('admin.packages');
-    Route::post('/packages', [\App\Http\Controllers\Admin\PackageController::class, 'store'])->name('admin.packages.store');
-    Route::put('/packages/{package}', [\App\Http\Controllers\Admin\PackageController::class, 'update'])->name('admin.packages.update');
-    Route::delete('/packages/{package}', [\App\Http\Controllers\Admin\PackageController::class, 'destroy'])->name('admin.packages.destroy');
+    Route::get('/packages', [PackageController::class, 'index'])->name('admin.packages');
+    Route::post('/packages', [PackageController::class, 'store'])->name('admin.packages.store');
+    Route::put('/packages/{package}', [PackageController::class, 'update'])->name('admin.packages.update');
+    Route::delete('/packages/{package}', [PackageController::class, 'destroy'])->name('admin.packages.destroy');
 });

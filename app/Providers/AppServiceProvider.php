@@ -2,10 +2,10 @@
 
 namespace App\Providers;
 
-use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Facades\Event;
 use App\Events\WifiPaymentSuccess;
 use App\Listeners\ProvisionHotspotUser;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -22,7 +22,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Keep this clean and empty. 
+        // Keep this clean and empty.
         // Our native webhook code lives directly in the HotspotController now!
         Event::listen(WifiPaymentSuccess::class, ProvisionHotspotUser::class);
     }

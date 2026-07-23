@@ -2,9 +2,9 @@
 
 namespace Tests\Feature;
 
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
 use Tests\TestCase;
 
 class AdminDashboardFilterTest extends TestCase
@@ -184,7 +184,7 @@ class AdminDashboardFilterTest extends TestCase
             'internet_status',
             'router_cpu',
             'router_memory',
-            'expired_sessions_today'
+            'expired_sessions_today',
         ]);
     }
 }

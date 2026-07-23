@@ -2,15 +2,15 @@
 
 namespace App\Console\Commands;
 
+use App\Services\MikrotikService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use RouterOS\Config;
-use RouterOS\Client as RouterClient;
 
 class CleanExpiredHotspotUsers extends Command
 {
     protected $signature = 'hotspot:clean-expired';
+
     protected $description = 'Kicks expired paid devices out of the MikroTik network';
 
     public function handle()
@@ -26,59 +26,59 @@ class CleanExpiredHotspotUsers extends Command
         }
 
         try {
-            $routerClient = \App\Services\MikrotikService::getClient();
+            $routerClient = MikrotikService::getClient();
 
             foreach ($expiredSessions as $session) {
                 // Find the actual user account on Mikrotik
                 $users = $routerClient->query([
                     '/ip/hotspot/user/print',
-                    '?mac-address=' . $session->mac_address
+                    '?mac-address='.$session->mac_address,
                 ])->read();
 
-                if (!empty($users)) {
+                if (! empty($users)) {
                     // Delete the user account from Mikrotik
                     $routerClient->query([
                         '/ip/hotspot/user/remove',
-                        '=.id=' . $users[0]['.id']
+                        '=.id='.$users[0]['.id'],
                     ])->read();
                 }
 
                 // Remove IP-binding so they get redirected to portal again
                 $bindings = $routerClient->query([
                     '/ip/hotspot/ip-binding/print',
-                    '?mac-address=' . $session->mac_address
+                    '?mac-address='.$session->mac_address,
                 ])->read();
 
-                if (!empty($bindings)) {
+                if (! empty($bindings)) {
                     $routerClient->query([
                         '/ip/hotspot/ip-binding/remove',
-                        '=.id=' . $bindings[0]['.id']
+                        '=.id='.$bindings[0]['.id'],
                     ])->read();
                 }
 
                 // Remove Simple Queue
                 $queues = $routerClient->query([
                     '/queue/simple/print',
-                    '?name=RateLimit_' . $session->mac_address
+                    '?name=RateLimit_'.$session->mac_address,
                 ])->read();
 
-                if (!empty($queues)) {
+                if (! empty($queues)) {
                     $routerClient->query([
                         '/queue/simple/remove',
-                        '=.id=' . $queues[0]['.id']
+                        '=.id='.$queues[0]['.id'],
                     ])->read();
                 }
 
                 // Also kick them out if they are currently logged in
                 $active = $routerClient->query([
                     '/ip/hotspot/active/print',
-                    '?user=' . $session->mac_address
+                    '?user='.$session->mac_address,
                 ])->read();
-                
-                if (!empty($active)) {
+
+                if (! empty($active)) {
                     $routerClient->query([
                         '/ip/hotspot/active/remove',
-                        '=.id=' . $active[0]['.id']
+                        '=.id='.$active[0]['.id'],
                     ])->read();
                 }
 
@@ -91,7 +91,7 @@ class CleanExpiredHotspotUsers extends Command
             }
 
         } catch (\Exception $e) {
-            Log::error("Expired Scheduler Runtime Interface Fault: " . $e->getMessage());
+            Log::error('Expired Scheduler Runtime Interface Fault: '.$e->getMessage());
         }
 
         return Command::SUCCESS;

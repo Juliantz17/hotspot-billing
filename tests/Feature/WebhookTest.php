@@ -2,11 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Events\WifiPaymentSuccess;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
-use App\Events\WifiPaymentSuccess;
 
 class WebhookTest extends TestCase
 {
@@ -19,9 +19,9 @@ class WebhookTest extends TestCase
         // Create the necessary table schema for the test
         // Since we are using RefreshDatabase, migrations will run.
         // We assume the migration for hotspot_transactions exists.
-        // Just in case it doesn't run properly in test env, we can 
+        // Just in case it doesn't run properly in test env, we can
         // quickly ensure it exists.
-        if (!DB::getSchemaBuilder()->hasTable('hotspot_transactions')) {
+        if (! DB::getSchemaBuilder()->hasTable('hotspot_transactions')) {
             DB::getSchemaBuilder()->create('hotspot_transactions', function ($table) {
                 $table->id();
                 $table->string('transaction_id');
@@ -64,7 +64,7 @@ class WebhookTest extends TestCase
         Event::fake();
 
         $transactionId = 'TXN_123';
-        
+
         DB::table('hotspot_transactions')->insert([
             'transaction_id' => $transactionId,
             'mac_address' => '00:11:22:33:44:55',
@@ -90,7 +90,7 @@ class WebhookTest extends TestCase
 
         $jsonData = json_encode($payload);
         $timestamp = now()->toIso8601String();
-        $stringToSign = "timestamp=" . $timestamp . "&" . $jsonData;
+        $stringToSign = 'timestamp='.$timestamp.'&'.$jsonData;
         $signature = base64_encode(hash_hmac('sha256', $stringToSign, env('SELCOM_API_SECRET', 'test_secret'), true));
 
         // Override the env secret for the test

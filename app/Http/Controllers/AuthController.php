@@ -12,6 +12,7 @@ class AuthController extends Controller
         if (Session::has('admin_logged_in')) {
             return redirect()->route('admin.dashboard');
         }
+
         return view('admin.login');
     }
 
@@ -27,6 +28,7 @@ class AuthController extends Controller
 
         if ($request->username === $adminUser && $request->password === $adminPass) {
             Session::put('admin_logged_in', true);
+
             return redirect()->route('admin.dashboard');
         }
 
@@ -36,6 +38,7 @@ class AuthController extends Controller
     public function logout()
     {
         Session::forget('admin_logged_in');
+
         return redirect()->route('admin.login');
     }
 }
