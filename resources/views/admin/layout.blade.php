@@ -33,13 +33,18 @@
         }
 
         .admin-sidebar {
-            background: rgba(246, 247, 250, 0.9);
-            border-right: 1px solid var(--line);
-            backdrop-filter: blur(18px);
+            background: linear-gradient(180deg, #151b27 0%, #0f1724 100%);
+            border-right: 1px solid #263244;
+            box-shadow: 18px 0 44px rgba(15, 23, 42, .14);
+        }
+
+        .admin-sidebar h1,
+        .admin-sidebar button {
+            color: #ffffff;
         }
 
         .sidebar-link {
-            color: #303746;
+            color: #cbd5e1;
             border: 1px solid transparent;
             border-radius: 10px;
             margin: 0 10px;
@@ -47,16 +52,16 @@
         }
 
         .sidebar-link:hover {
-            background: rgba(255,255,255,.78);
-            border-color: var(--line);
-            color: #111827;
+            background: rgba(255,255,255,.08);
+            border-color: rgba(255,255,255,.12);
+            color: #ffffff;
         }
 
         .sidebar-link.bg-gray-800 {
-            background: #ffffff !important;
-            border-color: var(--line-strong);
-            color: #111827 !important;
-            box-shadow: 0 8px 22px rgba(15, 23, 42, .07);
+            background: rgba(255,255,255,.14) !important;
+            border-color: rgba(255,255,255,.22);
+            color: #ffffff !important;
+            box-shadow: inset 3px 0 0 #0a84ff;
         }
 
         .table-header {
@@ -200,3 +205,4 @@
     </script>
 </body>
 </html>
+
