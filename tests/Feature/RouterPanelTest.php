@@ -90,6 +90,42 @@ class RouterPanelTest extends TestCase
         $response->assertSee('Selcom Txn TXN_1');
     }
 
+    public function test_mikrotik_logs_page_displays_latest_router_logs_newest_first()
+    {
+        $this->app->bind(RouterClient::class, function () {
+            $mock = \Mockery::mock(RouterClient::class);
+            $mock->shouldReceive('query')->with('/log/print')->once()->andReturnSelf();
+            $mock->shouldReceive('read')->once()->andReturn([
+                [
+                    '.id' => '*1',
+                    'time' => 'jul/23 10:10:00',
+                    'topics' => 'system,info',
+                    'message' => 'router rebooted',
+                ],
+                [
+                    '.id' => '*2',
+                    'time' => 'jul/23 10:11:00',
+                    'topics' => 'hotspot,warning',
+                    'message' => 'login failed for user AA:BB',
+                ],
+            ]);
+
+            return $mock;
+        });
+
+        $response = $this->withSession(['admin_logged_in' => true])->get(route('admin.logs'));
+
+        $response->assertStatus(200);
+        $response->assertSee('RouterOS System Logs');
+        $response->assertSee('hotspot,warning');
+        $response->assertSee('Warning');
+        $response->assertSee('login failed for user AA:BB');
+        $response->assertSeeInOrder([
+            'jul/23 10:11:00',
+            'jul/23 10:10:00',
+        ]);
+    }
+
     public function test_router_snapshot_returns_offline_payload_when_router_is_unreachable()
     {
         $this->app->bind(RouterClient::class, function () {

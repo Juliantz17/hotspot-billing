@@ -769,6 +769,31 @@ class AdminController extends Controller
         return view('admin.queues', compact('queues', 'error'));
     }
 
+    public function routerLogs()
+    {
+        $logs = [];
+        $error = null;
+
+        try {
+            $routerClient = MikrotikService::getClient();
+            $logs = collect($routerClient->query('/log/print')->read())
+                ->reverse()
+                ->take(100)
+                ->map(fn ($log) => [
+                    '.id' => $log['.id'] ?? null,
+                    'time' => $log['time'] ?? '-',
+                    'topics' => $log['topics'] ?? '-',
+                    'message' => $log['message'] ?? '-',
+                ])
+                ->values()
+                ->all();
+        } catch (\Exception $e) {
+            $error = 'Failed to connect to MikroTik router: '.$e->getMessage();
+        }
+
+        return view('admin.logs', compact('logs', 'error'));
+    }
+
     public function routerPanel()
     {
         return view('admin.router', [

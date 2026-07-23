@@ -36,6 +36,7 @@ Route::middleware(['admin'])->prefix('admin')->group(function () {
     Route::post('/active-sessions/{id}/kick', [AdminController::class, 'kickActiveSession'])->name('admin.active_sessions.kick');
     Route::get('/router', [AdminController::class, 'routerPanel'])->name('admin.router');
     Route::get('/queues', [AdminController::class, 'routerQueues'])->name('admin.queues');
+    Route::get('/logs', [AdminController::class, 'routerLogs'])->name('admin.logs');
     Route::get('/router-status', [AdminController::class, 'routerStatus'])->name('admin.router_status');
     Route::get('/router-snapshot', [AdminController::class, 'routerSnapshot'])->name('admin.router_snapshot');
     Route::post('/router/reboot', [AdminController::class, 'rebootRouter'])->name('admin.router_reboot');
