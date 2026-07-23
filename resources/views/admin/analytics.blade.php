@@ -57,6 +57,26 @@
     </div>
 </div>
 
+<!-- Router Live Data -->
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+    <div class="bg-white border border-gray-300 shadow-sm p-4 rounded-sm">
+        <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Active Hotspot Users</h3>
+        <p class="text-2xl font-bold text-green-700 mt-1">{{ number_format($activeHotspotUsersCount) }}</p>
+        <span class="text-[10px] text-gray-400">Authenticated users from /ip/hotspot/active</span>
+    </div>
+
+    <div class="bg-white border border-gray-300 shadow-sm p-4 rounded-sm">
+        <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Connected Hosts</h3>
+        <p class="text-2xl font-bold text-gray-900 mt-1">{{ number_format($connectedHostsCount) }}</p>
+        <span class="text-[10px] text-gray-400">Devices visible in /ip/hotspot/host</span>
+    </div>
+
+    <div class="bg-white border border-gray-300 shadow-sm p-4 rounded-sm">
+        <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Usage Source</h3>
+        <p class="text-lg font-bold text-blue-700 mt-1 truncate" title="{{ $routerDataSource }}">{{ $routerDataSource }}</p>
+        <span class="text-[10px] text-gray-400">Source for average data calculation</span>
+    </div>
+</div>
 <!-- Charts Section -->
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
     <!-- 7-Day Conversion Trend -->

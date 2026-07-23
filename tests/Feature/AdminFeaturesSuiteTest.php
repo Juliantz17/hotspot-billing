@@ -210,6 +210,52 @@ class AdminFeaturesSuiteTest extends TestCase
         $response->assertSee('50%');
     }
 
+    public function test_analytics_uses_active_hotspot_users_for_router_usage_and_still_shows_hosts()
+    {
+        $this->app->bind(RouterClient::class, function () {
+            $mock = \Mockery::mock(RouterClient::class);
+
+            $mock->shouldReceive('query')->with('/ip/hotspot/active/print')->once()->andReturnSelf();
+            $mock->shouldReceive('read')->once()->andReturn([
+                [
+                    'user' => 'AA:BB:CC:DD:EE:01',
+                    'mac-address' => 'AA:BB:CC:DD:EE:01',
+                    'bytes-in' => '1048576',
+                    'bytes-out' => '1048576',
+                ],
+                [
+                    'user' => 'AA:BB:CC:DD:EE:02',
+                    'mac-address' => 'AA:BB:CC:DD:EE:02',
+                    'bytes-in' => '524288',
+                    'bytes-out' => '524288',
+                ],
+            ]);
+
+            $mock->shouldReceive('query')->with('/ip/hotspot/host/print')->once()->andReturnSelf();
+            $mock->shouldReceive('read')->once()->andReturn([
+                ['mac-address' => 'AA:BB:CC:DD:EE:01'],
+                ['mac-address' => 'AA:BB:CC:DD:EE:02'],
+                ['mac-address' => 'AA:BB:CC:DD:EE:03'],
+            ]);
+
+            $mock->shouldReceive('query')->with('/queue/simple/print')->once()->andReturnSelf();
+            $mock->shouldReceive('read')->once()->andReturn([
+                ['name' => 'RateLimit_AA:BB:CC:DD:EE:01', 'bytes' => '10485760/10485760'],
+            ]);
+
+            return $mock;
+        });
+
+        $response = $this->withSession(['admin_logged_in' => true])
+            ->get(route('admin.analytics'));
+
+        $response->assertStatus(200);
+        $response->assertSee('Active Hotspot Users');
+        $response->assertSee('Connected Hosts');
+        $response->assertSee('Hotspot active sessions');
+        $response->assertSee('1.5 MB');
+    }
+
     public function test_new_analytics_metrics()
     {
         // 1. Setup Package

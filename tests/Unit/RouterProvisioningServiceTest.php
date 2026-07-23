@@ -9,7 +9,7 @@ use Tests\TestCase;
 
 class RouterProvisioningServiceTest extends TestCase
 {
-    public function test_provision_access_replaces_router_state_and_applies_binding_and_queue()
+    public function test_provision_access_replaces_router_state_without_creating_bypass_binding()
     {
         $session = (object) [
             'transaction_id' => 'TXN_ROUTER_1',
@@ -20,10 +20,24 @@ class RouterProvisioningServiceTest extends TestCase
 
         $mock = \Mockery::mock(RouterClient::class);
 
+        $mock->shouldReceive('query')->once()->with(['/ip/hotspot/active/print', '?mac-address=AA:BB:CC:DD:EE:FF'])->andReturnSelf();
+        $mock->shouldReceive('read')->once()->andReturn([['.id' => '*active']]);
+        $mock->shouldReceive('query')->once()->with(['/ip/hotspot/active/remove', '=.id=*active'])->andReturnSelf();
+        $mock->shouldReceive('read')->once()->andReturn([]);
+
         $mock->shouldReceive('query')->once()->with(['/ip/hotspot/user/print', '?name=AA:BB:CC:DD:EE:FF'])->andReturnSelf();
         $mock->shouldReceive('read')->once()->andReturn([['.id' => '*user']]);
-
         $mock->shouldReceive('query')->once()->with(['/ip/hotspot/user/remove', '=.id=*user'])->andReturnSelf();
+        $mock->shouldReceive('read')->once()->andReturn([]);
+
+        $mock->shouldReceive('query')->once()->with(['/ip/hotspot/ip-binding/print', '?mac-address=AA:BB:CC:DD:EE:FF'])->andReturnSelf();
+        $mock->shouldReceive('read')->once()->andReturn([['.id' => '*binding']]);
+        $mock->shouldReceive('query')->once()->with(['/ip/hotspot/ip-binding/remove', '=.id=*binding'])->andReturnSelf();
+        $mock->shouldReceive('read')->once()->andReturn([]);
+
+        $mock->shouldReceive('query')->once()->with(['/queue/simple/print', '?name=RateLimit_AA:BB:CC:DD:EE:FF'])->andReturnSelf();
+        $mock->shouldReceive('read')->once()->andReturn([['.id' => '*queue']]);
+        $mock->shouldReceive('query')->once()->with(['/queue/simple/remove', '=.id=*queue'])->andReturnSelf();
         $mock->shouldReceive('read')->once()->andReturn([]);
 
         $mock->shouldReceive('query')
@@ -40,12 +54,6 @@ class RouterProvisioningServiceTest extends TestCase
             ->andReturnSelf();
         $mock->shouldReceive('read')->once()->andReturn([]);
 
-        $mock->shouldReceive('query')->once()->with(['/ip/hotspot/active/print', '?mac-address=AA:BB:CC:DD:EE:FF'])->andReturnSelf();
-        $mock->shouldReceive('read')->once()->andReturn([['.id' => '*active']]);
-
-        $mock->shouldReceive('query')->once()->with(['/ip/hotspot/active/remove', '=.id=*active'])->andReturnSelf();
-        $mock->shouldReceive('read')->once()->andReturn([]);
-
         $mock->shouldReceive('query')
             ->once()
             ->with([
@@ -56,30 +64,6 @@ class RouterProvisioningServiceTest extends TestCase
                 '=mac-address=AA:BB:CC:DD:EE:FF',
             ])
             ->andReturnSelf();
-        $mock->shouldReceive('read')->once()->andReturn([]);
-
-        $mock->shouldReceive('query')->once()->with(['/ip/hotspot/ip-binding/print', '?mac-address=AA:BB:CC:DD:EE:FF'])->andReturnSelf();
-        $mock->shouldReceive('read')->once()->andReturn([['.id' => '*binding']]);
-
-        $mock->shouldReceive('query')->once()->with(['/ip/hotspot/ip-binding/remove', '=.id=*binding'])->andReturnSelf();
-        $mock->shouldReceive('read')->once()->andReturn([]);
-
-        $mock->shouldReceive('query')
-            ->once()
-            ->with([
-                '/ip/hotspot/ip-binding/add',
-                '=mac-address=AA:BB:CC:DD:EE:FF',
-                '=type=bypassed',
-                '=comment=Selcom Txn TXN_ROUTER_1',
-                '=address=192.168.88.10',
-            ])
-            ->andReturnSelf();
-        $mock->shouldReceive('read')->once()->andReturn([]);
-
-        $mock->shouldReceive('query')->once()->with(['/queue/simple/print', '?name=RateLimit_AA:BB:CC:DD:EE:FF'])->andReturnSelf();
-        $mock->shouldReceive('read')->once()->andReturn([['.id' => '*queue']]);
-
-        $mock->shouldReceive('query')->once()->with(['/queue/simple/remove', '=.id=*queue'])->andReturnSelf();
         $mock->shouldReceive('read')->once()->andReturn([]);
 
         $mock->shouldReceive('query')
@@ -93,6 +77,10 @@ class RouterProvisioningServiceTest extends TestCase
             ])
             ->andReturnSelf();
         $mock->shouldReceive('read')->once()->andReturn([]);
+
+        $mock->shouldReceive('query')
+            ->never()
+            ->withArgs(fn ($query) => is_array($query) && ($query[0] ?? null) === '/ip/hotspot/ip-binding/add');
 
         $this->app->bind(RouterClient::class, fn () => $mock);
         Log::shouldReceive('warning')->never();
@@ -111,7 +99,16 @@ class RouterProvisioningServiceTest extends TestCase
 
         $mock = \Mockery::mock(RouterClient::class);
 
+        $mock->shouldReceive('query')->once()->with(['/ip/hotspot/active/print', '?mac-address=11:22:33:44:55:66'])->andReturnSelf();
+        $mock->shouldReceive('read')->once()->andReturn([]);
+
         $mock->shouldReceive('query')->once()->with(['/ip/hotspot/user/print', '?name=11:22:33:44:55:66'])->andReturnSelf();
+        $mock->shouldReceive('read')->once()->andReturn([]);
+
+        $mock->shouldReceive('query')->once()->with(['/ip/hotspot/ip-binding/print', '?mac-address=11:22:33:44:55:66'])->andReturnSelf();
+        $mock->shouldReceive('read')->once()->andReturn([]);
+
+        $mock->shouldReceive('query')->once()->with(['/queue/simple/print', '?name=RateLimit_11:22:33:44:55:66'])->andReturnSelf();
         $mock->shouldReceive('read')->once()->andReturn([]);
 
         $mock->shouldReceive('query')
@@ -127,24 +124,6 @@ class RouterProvisioningServiceTest extends TestCase
         $mock->shouldReceive('query')->once()->with(['/ip/hotspot/active/print', '?mac-address=11:22:33:44:55:66'])->andReturnSelf();
         $mock->shouldReceive('read')->once()->andReturn([['address' => '192.168.88.25']]);
 
-        $mock->shouldReceive('query')->once()->with(['/ip/hotspot/ip-binding/print', '?mac-address=11:22:33:44:55:66'])->andReturnSelf();
-        $mock->shouldReceive('read')->once()->andReturn([]);
-
-        $mock->shouldReceive('query')
-            ->once()
-            ->with([
-                '/ip/hotspot/ip-binding/add',
-                '=mac-address=11:22:33:44:55:66',
-                '=type=bypassed',
-                '=comment=Recovered Txn TXN_ROUTER_2',
-                '=address=192.168.88.25',
-            ])
-            ->andReturnSelf();
-        $mock->shouldReceive('read')->once()->andReturn([]);
-
-        $mock->shouldReceive('query')->once()->with(['/queue/simple/print', '?name=RateLimit_11:22:33:44:55:66'])->andReturnSelf();
-        $mock->shouldReceive('read')->once()->andReturn([]);
-
         $mock->shouldReceive('query')
             ->once()
             ->with([
@@ -156,6 +135,10 @@ class RouterProvisioningServiceTest extends TestCase
             ])
             ->andReturnSelf();
         $mock->shouldReceive('read')->once()->andReturn([]);
+
+        $mock->shouldReceive('query')
+            ->never()
+            ->withArgs(fn ($query) => is_array($query) && ($query[0] ?? null) === '/ip/hotspot/ip-binding/add');
 
         $this->app->bind(RouterClient::class, fn () => $mock);
         Log::shouldReceive('warning')->never();

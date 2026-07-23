@@ -50,8 +50,12 @@
             <span data-router-field="memory_used" class="mt-2 block text-base font-semibold text-indigo-700">{{ $router['memory_used'] }}</span>
         </div>
         <div class="bg-white border border-gray-300 shadow-sm rounded-sm p-3">
-            <span class="block text-[11px] font-bold uppercase text-gray-500 tracking-wider">Hosts</span>
+            <span class="block text-[11px] font-bold uppercase text-gray-500 tracking-wider">Active Users</span>
             <span data-router-field="active_hotspot_users" class="mt-2 block text-base font-semibold text-gray-900">{{ $router['active_hotspot_users'] }}</span>
+        </div>
+        <div class="bg-white border border-gray-300 shadow-sm rounded-sm p-3">
+            <span class="block text-[11px] font-bold uppercase text-gray-500 tracking-wider">Hosts</span>
+            <span data-router-field="hosts" class="mt-2 block text-base font-semibold text-gray-900">{{ $router['hosts'] }}</span>
         </div>
         <div class="bg-white border border-gray-300 shadow-sm rounded-sm p-3">
             <span class="block text-[11px] font-bold uppercase text-gray-500 tracking-wider">Queues</span>
@@ -128,7 +132,7 @@
         }
 
         function renderRouter(data) {
-            ['identity', 'version', 'uptime', 'cpu_load', 'memory_used', 'active_hotspot_users', 'queues', 'error'].forEach(key => setField(key, data[key]));
+            ['identity', 'version', 'uptime', 'cpu_load', 'memory_used', 'active_hotspot_users', 'hosts', 'queues', 'error'].forEach(key => setField(key, data[key]));
             statusBadge.textContent = data.online ? 'Online' : 'Offline';
             statusBadge.className = data.online
                 ? 'mt-2 inline-flex items-center text-xs font-bold px-2 py-0.5 rounded border text-green-700 bg-green-50 border-green-200'

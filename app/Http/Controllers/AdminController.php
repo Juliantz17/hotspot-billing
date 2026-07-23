@@ -114,6 +114,8 @@ class AdminController extends Controller
             ->count();
 
         $onlineUsersCount = $activeDbUsersCount;
+        $activeHotspotUsersCount = 0;
+        $connectedHostsCount = 0;
         $internetStatus = false;
         $routerCpu = 'N/A';
         $routerMemory = 'N/A';
@@ -145,28 +147,29 @@ class AdminController extends Controller
                     }
                 }
 
-                // Query Hotspot Active Users & Hosts
-                $activeHosts = $routerClient->query('/ip/hotspot/host/print')->read();
-                if (! empty($activeHosts)) {
-                    $onlineUsersCount = max(count($activeHosts), $activeDbUsersCount);
-                    foreach ($activeHosts as $h) {
-                        $rxRate = floatval($h['rx-rate'] ?? 0);
-                        $txRate = floatval($h['tx-rate'] ?? 0);
-                        $currentBandwidthBps += ($rxRate + $txRate);
+                $activeUsers = $routerClient->query('/ip/hotspot/active/print')->read();
+                $hosts = $routerClient->query('/ip/hotspot/host/print')->read();
+
+                $activeHotspotUsersCount = count($activeUsers);
+                $connectedHostsCount = count($hosts);
+                $onlineUsersCount = max($activeHotspotUsersCount, $activeDbUsersCount);
+
+                foreach ($activeUsers as $activeUser) {
+                    $currentBandwidthBps += floatval($activeUser['rx-rate'] ?? 0) + floatval($activeUser['tx-rate'] ?? 0);
+                }
+
+                if ($currentBandwidthBps == 0) {
+                    foreach ($hosts as $host) {
+                        $currentBandwidthBps += floatval($host['rx-rate'] ?? 0) + floatval($host['tx-rate'] ?? 0);
                     }
                 }
 
-                // Query Simple Queues for rate calculation if host rates are zero
                 if ($currentBandwidthBps == 0) {
                     $queues = $routerClient->query('/queue/simple/print')->read();
-                    if (! empty($queues)) {
-                        foreach ($queues as $q) {
-                            if (! empty($q['rate'])) {
-                                $parts = explode('/', $q['rate']);
-                                if (count($parts) === 2) {
-                                    $currentBandwidthBps += (floatval($parts[0]) + floatval($parts[1]));
-                                }
-                            }
+                    foreach ($queues as $queue) {
+                        $parts = explode('/', (string) ($queue['rate'] ?? ''));
+                        if (count($parts) === 2) {
+                            $currentBandwidthBps += floatval($parts[0]) + floatval($parts[1]);
                         }
                     }
                 }
@@ -186,6 +189,8 @@ class AdminController extends Controller
 
         return [
             'online_users' => $onlineUsersCount,
+            'active_hotspot_users' => $activeHotspotUsersCount,
+            'connected_hosts' => $connectedHostsCount,
             'revenue_today' => $revenueToday,
             'revenue_today_formatted' => 'TZS '.number_format($revenueToday),
             'current_bandwidth' => $currentBandwidthFormatted,
@@ -325,37 +330,64 @@ class AdminController extends Controller
 
         // Average Data Used Per Customer
         $avgDataUsedFormatted = 'N/A';
+        $activeHotspotUsersCount = 0;
+        $connectedHostsCount = 0;
+        $routerDataSource = 'Unavailable';
         try {
             if (! app()->environment('testing') || app()->bound(Client::class)) {
                 $routerClient = MikrotikService::getClient();
+                $activeUsers = $routerClient->query('/ip/hotspot/active/print')->read();
                 $hosts = $routerClient->query('/ip/hotspot/host/print')->read();
                 $queues = $routerClient->query('/queue/simple/print')->read();
 
+                $activeHotspotUsersCount = count($activeUsers);
+                $connectedHostsCount = count($hosts);
                 $totalBytes = 0;
                 $userCount = 0;
 
-                foreach ($hosts as $h) {
-                    $bytesIn = floatval($h['bytes-in'] ?? 0);
-                    $bytesOut = floatval($h['bytes-out'] ?? 0);
+                foreach ($activeUsers as $activeUser) {
+                    $bytesIn = floatval($activeUser['bytes-in'] ?? 0);
+                    $bytesOut = floatval($activeUser['bytes-out'] ?? 0);
                     if ($bytesIn > 0 || $bytesOut > 0) {
                         $totalBytes += ($bytesIn + $bytesOut);
                         $userCount++;
                     }
                 }
 
-                if ($userCount == 0 && ! empty($queues)) {
-                    foreach ($queues as $q) {
-                        if (! empty($q['bytes'])) {
-                            $parts = explode('/', $q['bytes']);
-                            if (count($parts) === 2) {
-                                $uBytes = floatval($parts[0]);
-                                $dBytes = floatval($parts[1]);
-                                if ($uBytes > 0 || $dBytes > 0) {
-                                    $totalBytes += ($uBytes + $dBytes);
-                                    $userCount++;
-                                }
+                if ($userCount > 0) {
+                    $routerDataSource = 'Hotspot active sessions';
+                }
+
+                if ($userCount == 0) {
+                    foreach ($hosts as $host) {
+                        $bytesIn = floatval($host['bytes-in'] ?? 0);
+                        $bytesOut = floatval($host['bytes-out'] ?? 0);
+                        if ($bytesIn > 0 || $bytesOut > 0) {
+                            $totalBytes += ($bytesIn + $bytesOut);
+                            $userCount++;
+                        }
+                    }
+
+                    if ($userCount > 0) {
+                        $routerDataSource = 'Router hosts';
+                    }
+                }
+
+                if ($userCount == 0) {
+                    foreach ($queues as $queue) {
+                        $parts = explode('/', (string) ($queue['bytes'] ?? ''));
+                        if (count($parts) === 2) {
+                            $uploadBytes = floatval($parts[0]);
+                            $downloadBytes = floatval($parts[1]);
+                            if ($uploadBytes > 0 || $downloadBytes > 0) {
+                                $totalBytes += ($uploadBytes + $downloadBytes);
+                                $userCount++;
                             }
                         }
+                    }
+
+                    if ($userCount > 0) {
+                        $routerDataSource = 'Simple queues';
                     }
                 }
 
@@ -364,6 +396,7 @@ class AdminController extends Controller
                     $avgDataUsedFormatted = $this->formatBytes($avgBytes);
                 } else {
                     $avgDataUsedFormatted = '0 B';
+                    $routerDataSource = 'No router usage yet';
                 }
             }
         } catch (\Exception $e) {
@@ -424,7 +457,10 @@ class AdminController extends Controller
             'mostPopularPackageName',
             'mostPopularPackageSales',
             'packagePopularity',
-            'avgDataUsedFormatted'
+            'avgDataUsedFormatted',
+            'activeHotspotUsersCount',
+            'connectedHostsCount',
+            'routerDataSource'
         ));
     }
 
@@ -847,6 +883,7 @@ class AdminController extends Controller
 
             $identity = $routerClient->query('/system/identity/print')->read();
             $resource = $routerClient->query('/system/resource/print')->read();
+            $activeUsers = $routerClient->query('/ip/hotspot/active/print')->read();
             $hosts = $routerClient->query('/ip/hotspot/host/print')->read();
             $queues = $routerClient->query('/queue/simple/print')->read();
             $interfaces = $routerClient->query('/interface/print')->read();
@@ -865,7 +902,7 @@ class AdminController extends Controller
                 'memory_used' => $usedMemoryPercent,
                 'free_memory' => isset($resourceRow['free-memory']) ? $this->formatBytes($resourceRow['free-memory']) : 'N/A',
                 'total_memory' => isset($resourceRow['total-memory']) ? $this->formatBytes($resourceRow['total-memory']) : 'N/A',
-                'active_hotspot_users' => count($hosts),
+                'active_hotspot_users' => count($activeUsers),
                 'hosts' => count($hosts),
                 'queues' => count($queues),
                 'interfaces' => collect($interfaces)

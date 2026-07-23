@@ -88,7 +88,7 @@
 <div class="mb-6 bg-white border border-gray-300 shadow-sm p-4 rounded-sm flex justify-between items-center">
     <div>
         <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wide">MikroTik Simple Queues</h3>
-        <p class="text-xs text-gray-500 mt-1">Rate-limit queues used to enforce package speeds for bypassed hotspot devices.</p>
+        <p class="text-xs text-gray-500 mt-1">Rate-limit queues used to enforce package speeds for authenticated hotspot devices.</p>
     </div>
     <a href="{{ route('admin.queues') }}" class="bg-gray-800 hover:bg-gray-700 text-white text-xs px-3 py-1.5 rounded-sm border border-gray-800 shadow-sm">Refresh</a>
 </div>

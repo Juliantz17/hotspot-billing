@@ -25,7 +25,10 @@ class RouterProvisioningService
         $speedLimit = $this->normalizeSpeedLimit($session->speed_limit ?? null);
         $comment = $commentPrefix.' '.$session->transaction_id;
 
+        $this->removeActiveSessions($mac);
         $this->removeHotspotUsers($mac);
+        $this->removeIpBindings($mac);
+        $this->removeSimpleQueues($mac);
 
         $query = [
             '/ip/hotspot/user/add',
@@ -43,7 +46,7 @@ class RouterProvisioningService
 
         $this->autoLogin($mac, $ip);
         $ip = $this->resolveIpAddress($mac, $ip);
-        $this->syncBypassBindingAndQueue($mac, $ip, $speedLimit, $comment);
+        $this->syncSimpleQueue($mac, $ip, $speedLimit, $comment);
     }
 
     public function removeMacAccess(string $mac, bool $includeCookies = false): void
@@ -72,7 +75,6 @@ class RouterProvisioningService
         }
 
         try {
-            $this->removeActiveSessions($mac);
             $this->client()->query([
                 '/ip/hotspot/active/login',
                 '=user='.$mac,
@@ -85,37 +87,22 @@ class RouterProvisioningService
         }
     }
 
-    private function syncBypassBindingAndQueue(string $mac, ?string $ip, ?string $speedLimit, string $comment): void
+    private function syncSimpleQueue(string $mac, ?string $ip, ?string $speedLimit, string $comment): void
     {
+        if (empty($speedLimit) || empty($ip)) {
+            return;
+        }
+
         try {
-            $this->removeIpBindings($mac);
-
-            $bindingQuery = [
-                '/ip/hotspot/ip-binding/add',
-                '=mac-address='.$mac,
-                '=type=bypassed',
+            $this->client()->query([
+                '/queue/simple/add',
+                '=name=RateLimit_'.$mac,
+                '=target='.$ip.'/32',
+                '=max-limit='.$speedLimit,
                 '=comment='.$comment,
-            ];
-
-            if (! empty($ip)) {
-                $bindingQuery[] = '=address='.$ip;
-            }
-
-            $this->client()->query($bindingQuery)->read();
-
-            if (! empty($speedLimit) && ! empty($ip)) {
-                $this->removeSimpleQueues($mac);
-
-                $this->client()->query([
-                    '/queue/simple/add',
-                    '=name=RateLimit_'.$mac,
-                    '=target='.$ip.'/32',
-                    '=max-limit='.$speedLimit,
-                    '=comment='.$comment,
-                ])->read();
-            }
+            ])->read();
         } catch (\Exception $e) {
-            Log::warning("Could not add ip-binding or queue for MAC {$mac}.", ['error' => $e->getMessage()]);
+            Log::warning("Could not add simple queue for MAC {$mac}.", ['error' => $e->getMessage()]);
         }
     }
 

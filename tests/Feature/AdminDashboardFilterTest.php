@@ -178,6 +178,8 @@ class AdminDashboardFilterTest extends TestCase
         $response->assertStatus(200);
         $response->assertJsonStructure([
             'online_users',
+            'active_hotspot_users',
+            'connected_hosts',
             'revenue_today',
             'revenue_today_formatted',
             'current_bandwidth',

@@ -27,6 +27,11 @@ class RouterPanelTest extends TestCase
                 'free-memory' => '750000',
             ]]);
 
+            $mock->shouldReceive('query')->with('/ip/hotspot/active/print')->once()->andReturnSelf();
+            $mock->shouldReceive('read')->once()->andReturn([
+                ['user' => 'AA:BB:CC:DD:EE:FF'],
+            ]);
+
             $mock->shouldReceive('query')->with('/ip/hotspot/host/print')->once()->andReturnSelf();
             $mock->shouldReceive('read')->once()->andReturn([
                 ['mac-address' => 'AA:BB:CC:DD:EE:FF'],
