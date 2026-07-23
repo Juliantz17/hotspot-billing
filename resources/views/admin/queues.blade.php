@@ -22,6 +22,60 @@
             }
             return formatQueueBytes($parts[0]).' / '.formatQueueBytes($parts[1]);
         }
+
+        function queueRateToBps($value) {
+            $value = trim((string) $value);
+            if ($value === '' || $value === '0') {
+                return 0;
+            }
+
+            if (preg_match('/^([0-9]+(?:\.[0-9]+)?)([kKmMgG]?)$/', $value, $matches) !== 1) {
+                return null;
+            }
+
+            $number = (float) $matches[1];
+            $suffix = strtolower($matches[2] ?? '');
+
+            return match ($suffix) {
+                'k' => $number * 1000,
+                'm' => $number * 1000000,
+                'g' => $number * 1000000000,
+                default => $number,
+            };
+        }
+
+        function formatQueueRate($value, $zeroLabel = '0 bps') {
+            $bps = queueRateToBps($value);
+            if ($bps === null) {
+                return $value ?: $zeroLabel;
+            }
+
+            if ($bps <= 0) {
+                return $zeroLabel;
+            }
+
+            if ($bps >= 1000000000) {
+                return round($bps / 1000000000, 2).' Gbps';
+            }
+
+            if ($bps >= 1000000) {
+                return round($bps / 1000000, 2).' Mbps';
+            }
+
+            if ($bps >= 1000) {
+                return round($bps / 1000, 2).' Kbps';
+            }
+
+            return round($bps, 2).' bps';
+        }
+
+        function formatQueueRatePair($value, $zeroLabel = '0 bps') {
+            $parts = explode('/', (string) $value);
+            if (count($parts) !== 2) {
+                return formatQueueRate($value, $zeroLabel);
+            }
+            return formatQueueRate($parts[0], $zeroLabel).' / '.formatQueueRate($parts[1], $zeroLabel);
+        }
     }
 @endphp
 
@@ -60,9 +114,9 @@
                     <tr class="table-row border-b border-gray-200">
                         <td class="px-4 py-2 font-mono text-xs font-semibold text-gray-900">{{ $queue['name'] }}</td>
                         <td class="px-4 py-2 font-mono text-xs">{{ $queue['target'] }}</td>
-                        <td class="px-4 py-2 font-mono text-xs text-blue-800">{{ $queue['max_limit'] }}</td>
-                        <td class="px-4 py-2 font-mono text-xs">{{ $queue['limit_at'] }}</td>
-                        <td class="px-4 py-2 font-mono text-xs">{{ $queue['rate'] }}</td>
+                        <td class="px-4 py-2 font-mono text-xs text-blue-800" title="Raw: {{ $queue['max_limit'] }}">{{ formatQueueRatePair($queue['max_limit'], 'Unlimited') }}</td>
+                        <td class="px-4 py-2 font-mono text-xs" title="Raw: {{ $queue['limit_at'] }}">{{ formatQueueRatePair($queue['limit_at'], 'None') }}</td>
+                        <td class="px-4 py-2 font-mono text-xs" title="Raw: {{ $queue['rate'] }}">{{ formatQueueRatePair($queue['rate']) }}</td>
                         <td class="px-4 py-2 font-mono text-xs">{{ formatQueueBytePair($queue['bytes']) }}</td>
                         <td class="px-4 py-2 font-mono text-xs">{{ $queue['packets'] }}</td>
                         <td class="px-4 py-2">

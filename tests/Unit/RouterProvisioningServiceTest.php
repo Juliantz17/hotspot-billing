@@ -162,4 +162,42 @@ class RouterProvisioningServiceTest extends TestCase
 
         app(RouterProvisioningService::class)->provisionAccess($session, 'Recovered Txn');
     }
+
+    public function test_remove_mac_access_removes_every_matching_simple_queue()
+    {
+        $mock = \Mockery::mock(RouterClient::class);
+
+        $mock->shouldReceive('query')->once()->with(['/ip/hotspot/active/print', '?mac-address=AA:BB:CC:DD:EE:FF'])->andReturnSelf();
+        $mock->shouldReceive('read')->once()->andReturn([]);
+
+        $mock->shouldReceive('query')->once()->with(['/ip/hotspot/user/print', '?name=AA:BB:CC:DD:EE:FF'])->andReturnSelf();
+        $mock->shouldReceive('read')->once()->andReturn([]);
+
+        $mock->shouldReceive('query')->once()->with(['/ip/hotspot/ip-binding/print', '?mac-address=AA:BB:CC:DD:EE:FF'])->andReturnSelf();
+        $mock->shouldReceive('read')->once()->andReturn([]);
+
+        $mock->shouldReceive('query')
+            ->once()
+            ->with(['/queue/simple/print', '?name=RateLimit_AA:BB:CC:DD:EE:FF'])
+            ->andReturnSelf();
+        $mock->shouldReceive('read')->once()->andReturn([
+            ['.id' => '*queue1'],
+            ['.id' => '*queue2'],
+        ]);
+
+        $mock->shouldReceive('query')->once()->with(['/queue/simple/remove', '=.id=*queue1'])->andReturnSelf();
+        $mock->shouldReceive('read')->once()->andReturn([]);
+        $mock->shouldReceive('query')->once()->with(['/queue/simple/remove', '=.id=*queue2'])->andReturnSelf();
+        $mock->shouldReceive('read')->once()->andReturn([]);
+
+        $mock->shouldReceive('query')->once()->with(['/ip/hotspot/host/print', '?mac-address=AA:BB:CC:DD:EE:FF'])->andReturnSelf();
+        $mock->shouldReceive('read')->once()->andReturn([]);
+
+        $mock->shouldReceive('query')->once()->with(['/ip/hotspot/cookie/print', '?mac-address=AA:BB:CC:DD:EE:FF'])->andReturnSelf();
+        $mock->shouldReceive('read')->once()->andReturn([]);
+
+        $this->app->bind(RouterClient::class, fn () => $mock);
+
+        app(RouterProvisioningService::class)->removeMacAccess('AA:BB:CC:DD:EE:FF', true);
+    }
 }

@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Services\MikrotikService;
+use App\Services\RouterProvisioningService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -26,61 +26,10 @@ class CleanExpiredHotspotUsers extends Command
         }
 
         try {
-            $routerClient = MikrotikService::getClient();
+            $routerProvisioning = app(RouterProvisioningService::class);
 
             foreach ($expiredSessions as $session) {
-                // Find the actual user account on Mikrotik
-                $users = $routerClient->query([
-                    '/ip/hotspot/user/print',
-                    '?mac-address='.$session->mac_address,
-                ])->read();
-
-                if (! empty($users)) {
-                    // Delete the user account from Mikrotik
-                    $routerClient->query([
-                        '/ip/hotspot/user/remove',
-                        '=.id='.$users[0]['.id'],
-                    ])->read();
-                }
-
-                // Remove IP-binding so they get redirected to portal again
-                $bindings = $routerClient->query([
-                    '/ip/hotspot/ip-binding/print',
-                    '?mac-address='.$session->mac_address,
-                ])->read();
-
-                if (! empty($bindings)) {
-                    $routerClient->query([
-                        '/ip/hotspot/ip-binding/remove',
-                        '=.id='.$bindings[0]['.id'],
-                    ])->read();
-                }
-
-                // Remove Simple Queue
-                $queues = $routerClient->query([
-                    '/queue/simple/print',
-                    '?name=RateLimit_'.$session->mac_address,
-                ])->read();
-
-                if (! empty($queues)) {
-                    $routerClient->query([
-                        '/queue/simple/remove',
-                        '=.id='.$queues[0]['.id'],
-                    ])->read();
-                }
-
-                // Also kick them out if they are currently logged in
-                $active = $routerClient->query([
-                    '/ip/hotspot/active/print',
-                    '?user='.$session->mac_address,
-                ])->read();
-
-                if (! empty($active)) {
-                    $routerClient->query([
-                        '/ip/hotspot/active/remove',
-                        '=.id='.$active[0]['.id'],
-                    ])->read();
-                }
+                $routerProvisioning->removeMacAccess($session->mac_address, true);
 
                 Log::info("Session Limit Exceeded. Device MAC [{$session->mac_address}] fully removed from router.");
 

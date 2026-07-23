@@ -68,9 +68,9 @@ class RouterPanelTest extends TestCase
             $mock->shouldReceive('read')->once()->andReturn([[
                 'name' => 'RateLimit_AA:BB',
                 'target' => '192.168.88.23/32',
-                'max-limit' => '2M/2M',
+                'max-limit' => '3000000/3000000',
                 'limit-at' => '0/0',
-                'rate' => '200k/500k',
+                'rate' => '133944/403088',
                 'bytes' => '1024/2048',
                 'packets' => '10/20',
                 'disabled' => 'false',
@@ -85,8 +85,8 @@ class RouterPanelTest extends TestCase
         $response->assertStatus(200);
         $response->assertSee('RateLimit_AA:BB');
         $response->assertSee('192.168.88.23/32');
-        $response->assertSee('2M/2M');
-        $response->assertSee('200k/500k');
+        $response->assertSee('3 Mbps / 3 Mbps');
+        $response->assertSee('133.94 Kbps / 403.09 Kbps');
         $response->assertSee('Selcom Txn TXN_1');
     }
 
