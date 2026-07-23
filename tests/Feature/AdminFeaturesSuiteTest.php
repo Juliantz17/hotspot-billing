@@ -122,6 +122,14 @@ class AdminFeaturesSuiteTest extends TestCase
                     'mac-address' => 'AA:BB:CC:DD:EE:11',
                     'address' => '192.168.88.254',
                 ],
+                [
+                    '.id' => '*host2',
+                    'mac-address' => 'AA:BB:CC:DD:EE:22',
+                    'address' => '192.168.88.88',
+                    'idle-time' => '00:01:00',
+                    'bytes-in' => '1024',
+                    'bytes-out' => '2048',
+                ],
             ]);
 
             $mock->shouldReceive('query')->with('/ip/hotspot/ip-binding/print')->once()->andReturnSelf();
@@ -158,6 +166,9 @@ class AdminFeaturesSuiteTest extends TestCase
         $response->assertSee('2 MB');
         $response->assertSee('4 MB');
         $response->assertSee('Test active session comment');
+        $response->assertSee('AA:BB:CC:DD:EE:22');
+        $response->assertSee('192.168.88.88');
+        $response->assertSee('Host Only');
     }
 
     public function test_kick_active_session()

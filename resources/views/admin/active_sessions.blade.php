@@ -37,7 +37,7 @@
 <div class="mb-6 bg-white border border-gray-300 shadow-sm p-4 rounded-sm flex justify-between items-center">
     <div>
         <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wide">Authenticated Hotspot Sessions</h3>
-        <p class="text-xs text-gray-500 mt-1">Authenticated users from /ip/hotspot/active, with host and queue details merged by MAC address.</p>
+        <p class="text-xs text-gray-500 mt-1">Authenticated users from /ip/hotspot/active plus host-only devices from /ip/hotspot/host.</p>
     </div>
     <div>
         <a href="{{ route('admin.active_sessions') }}" class="bg-gray-800 hover:bg-gray-700 text-white text-xs px-3 py-1.5 rounded-sm border border-gray-800 shadow-sm">
@@ -70,9 +70,15 @@
                     </td>
                     <td class="px-4 py-2 font-mono text-xs">{{ $session['address'] }}</td>
                     <td class="px-4 py-2">
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-green-100 text-green-800 border border-green-300">
-                            Authenticated
-                        </span>
+                        @if($session['source'] === 'active')
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-green-100 text-green-800 border border-green-300">
+                                Authenticated
+                            </span>
+                        @else
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                Host Only
+                            </span>
+                        @endif
                         @if($session['host_seen'])
                             <span class="mt-1 inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
                                 Host Seen
@@ -99,8 +105,8 @@
                         {{ $session['comment'] }}
                     </td>
                     <td class="px-4 py-2 text-right">
-                        @if(isset($session['.id']))
-                            <form method="POST" action="{{ route('admin.active_sessions.kick', $session['.id']) }}" onsubmit="return confirm('Remove this active/host connection from the router?');" class="m-0 inline-block">
+                        @if(!empty($session['host_id']) || !empty($session['.id']))
+                            <form method="POST" action="{{ route('admin.active_sessions.kick', $session['host_id'] ?? $session['.id']) }}" onsubmit="return confirm('Remove this active/host connection from the router?');" class="m-0 inline-block">
                                 @csrf
                                 <button type="submit" class="bg-red-600 hover:bg-red-700 text-white text-xs px-2.5 py-0.5 rounded-sm border border-red-700 shadow-sm">
                                     Remove
@@ -113,7 +119,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="9" class="px-4 py-6 text-center text-gray-500 text-sm">No authenticated hotspot users found on the router.</td>
+                    <td colspan="9" class="px-4 py-6 text-center text-gray-500 text-sm">No active users or hosts found on the router.</td>
                 </tr>
                 @endforelse
             </tbody>

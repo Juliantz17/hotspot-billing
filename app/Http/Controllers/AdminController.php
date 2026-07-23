@@ -174,6 +174,7 @@ class AdminController extends Controller
                     }
                 }
             }
+
         } catch (\Exception $e) {
             // Router offline/unreachable fallback values set safely
         }
@@ -399,6 +400,7 @@ class AdminController extends Controller
                     $routerDataSource = 'No router usage yet';
                 }
             }
+
         } catch (\Exception $e) {
             $avgDataUsedFormatted = 'N/A';
         }
@@ -657,6 +659,7 @@ class AdminController extends Controller
                     $routerClient->query(['/ip/hotspot/host/remove', '=.id='.$h['.id']])->read();
                 }
             }
+
         } catch (\Exception $e) {
             Log::warning("Could not kick old MAC {$activeTxn->mac_address} during admin reconnect.", ['error' => $e->getMessage()]);
         }
@@ -718,12 +721,14 @@ class AdminController extends Controller
                 }
             }
 
+            $activeMacs = [];
             foreach ($activeUsers as $activeUser) {
                 $mac = strtolower($activeUser['mac-address'] ?? $activeUser['user'] ?? '');
                 if (empty($mac)) {
                     continue;
                 }
 
+                $activeMacs[$mac] = true;
                 $host = $hostsMap[$mac] ?? null;
                 $binding = $bindingsMap[$mac] ?? null;
                 $queue = $queuesMap[$mac] ?? null;
@@ -745,6 +750,7 @@ class AdminController extends Controller
                     'mac' => $activeUser['mac-address'] ?? ($host['mac-address'] ?? strtoupper($mac)),
                     'address' => $activeUser['address'] ?? ($host['address'] ?? '-'),
                     'host_address' => $host['address'] ?? '-',
+                    'source' => 'active',
                     'host_seen' => $host !== null,
                     'uptime' => $activeUser['uptime'] ?? '-',
                     'idle-time' => $activeUser['idle-time'] ?? ($host['idle-time'] ?? '-'),
@@ -755,6 +761,45 @@ class AdminController extends Controller
                     'queue-in' => $queueUploadBytes,
                     'queue-out' => $queueDownloadBytes,
                     'comment' => $activeUser['comment'] ?? ($host['comment'] ?? ($binding['comment'] ?? '-')),
+                ];
+            }
+            foreach ($hosts as $host) {
+                $mac = strtolower($host['mac-address'] ?? '');
+                if (empty($mac) || isset($activeMacs[$mac])) {
+                    continue;
+                }
+
+                $binding = $bindingsMap[$mac] ?? null;
+                $queue = $queuesMap[$mac] ?? null;
+                $queueUploadBytes = 0;
+                $queueDownloadBytes = 0;
+
+                if (! empty($queue['bytes'])) {
+                    $parts = explode('/', $queue['bytes']);
+                    if (count($parts) === 2) {
+                        $queueUploadBytes = floatval($parts[0]);
+                        $queueDownloadBytes = floatval($parts[1]);
+                    }
+                }
+
+                $activeSessions[] = [
+                    '.id' => null,
+                    'host_id' => $host['.id'] ?? null,
+                    'user' => $host['mac-address'] ?? strtoupper($mac),
+                    'mac' => $host['mac-address'] ?? strtoupper($mac),
+                    'address' => $host['address'] ?? '-',
+                    'host_address' => $host['address'] ?? '-',
+                    'source' => 'host',
+                    'host_seen' => true,
+                    'uptime' => '-',
+                    'idle-time' => $host['idle-time'] ?? '-',
+                    'rx-rate' => $host['rx-rate'] ?? '-',
+                    'tx-rate' => $host['tx-rate'] ?? '-',
+                    'bytes-in' => $host['bytes-in'] ?? '0',
+                    'bytes-out' => $host['bytes-out'] ?? '0',
+                    'queue-in' => $queueUploadBytes,
+                    'queue-out' => $queueDownloadBytes,
+                    'comment' => $host['comment'] ?? ($binding['comment'] ?? '-'),
                 ];
             }
         } catch (\Exception $e) {
