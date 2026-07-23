@@ -6,12 +6,12 @@
     <title>Processing Payment...</title>
     <style>
         :root {
-            --bg-color: #f3f4f6;
+            --bg-color: #f5f5f7;
             --card-bg: #ffffff;
             --text-main: #1f2937;
             --text-muted: #6b7280;
-            --border-color: #d1d5db;
-            --primary: #0f172a;
+            --border-color: #d8dde6;
+            --primary: #111827;
             --success-bg: #f0fdf4;
             --success-text: #16a34a;
             --danger-bg: #fef2f2;
@@ -25,7 +25,7 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg-color);
+            background: radial-gradient(circle at top, #ffffff 0, var(--bg-color) 46%);
             color: var(--text-main);
             display: flex;
             align-items: center;
@@ -39,8 +39,8 @@
             width: 100%;
             max-width: 420px;
             padding: 2.5rem 2rem;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border-radius: 18px;
+            box-shadow: 0 24px 70px rgba(15, 23, 42, 0.12);
             border: 1px solid var(--border-color);
             text-align: center;
         }
@@ -98,7 +98,7 @@
         .txn-box {
             background-color: #f9fafb;
             border: 1px solid var(--border-color);
-            border-radius: 6px;
+            border-radius: 12px;
             padding: 0.75rem;
             margin-bottom: 1.5rem;
             font-family: monospace;
@@ -119,7 +119,7 @@
 
         .status-box {
             padding: 0.75rem 1rem;
-            border-radius: 6px;
+            border-radius: 12px;
             font-size: 0.875rem;
             font-weight: 500;
             display: flex;
@@ -150,7 +150,7 @@
         .btn {
             display: inline-block;
             padding: 0.5rem 1rem;
-            border-radius: 4px;
+            border-radius: 10px;
             font-size: 0.75rem;
             text-transform: uppercase;
             font-weight: bold;

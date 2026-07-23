@@ -6,13 +6,13 @@
     <title>Mtandao wa Wi-Fi</title>
     <style>
         :root {
-            --bg-color: #f3f4f6;
+            --bg-color: #f5f5f7;
             --card-bg: #ffffff;
             --text-main: #1f2937;
             --text-muted: #6b7280;
-            --border-color: #d1d5db;
-            --primary: #0f172a;
-            --primary-hover: #1e293b;
+            --border-color: #d8dde6;
+            --primary: #111827;
+            --primary-hover: #000000;
             --focus-ring: #cbd5e1;
             --error: #ef4444;
             --info-bg: #eff6ff;
@@ -30,7 +30,7 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg-color);
+            background: radial-gradient(circle at top, #ffffff 0, var(--bg-color) 46%);
             color: var(--text-main);
             display: flex;
             align-items: center;
@@ -52,9 +52,9 @@
             width: 100%;
             max-width: 420px;
             padding: 2.5rem 2rem;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            border: 1px solid var(--info-border);
+            border-radius: 18px;
+            box-shadow: 0 24px 70px rgba(15, 23, 42, 0.12);
+            border: 1px solid rgba(216, 221, 230, 0.9);
         }
 
         .header {
@@ -93,8 +93,8 @@
             padding: 0.75rem;
             font-size: 0.875rem;
             border: 1px solid var(--border-color);
-            border-radius: 6px;
-            background-color: #fff;
+            border-radius: 12px;
+            background-color: rgba(255, 255, 255, 0.92);
             color: var(--text-main);
             transition: all 0.2s;
             appearance: none;
@@ -125,7 +125,7 @@
 
         .package-card {
             border: 2px solid var(--border-color);
-            border-radius: 8px;
+            border-radius: 18px;
             padding: 1rem;
             text-align: center;
             transition: all 0.2s;
@@ -145,7 +145,7 @@
         .package-input:checked + .package-card {
             border-color: var(--primary);
             background-color: #f8fafc;
-            box-shadow: 0 0 0 1px var(--primary);
+            box-shadow: 0 10px 24px rgba(17, 24, 39, 0.12), 0 0 0 1px var(--primary);
         }
 
         .wifi-icon {
@@ -186,7 +186,7 @@
             color: #fff;
             background-color: var(--primary);
             border: none;
-            border-radius: 6px;
+            border-radius: 12px;
             cursor: pointer;
             transition: background-color 0.2s;
             margin-top: 0.5rem;
@@ -236,7 +236,7 @@
                 <input type="hidden" name="ip" value="{{ $ip ?? '' }}">
 
                 @if(isset($activeTxn))
-                <div style="background-color: var(--success-bg); border: 1px solid #86efac; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; text-align: center;">
+                <div style="background-color: var(--success-bg); border: 1px solid #86efac; border-radius: 18px; padding: 1rem; margin-bottom: 1.5rem; text-align: center;">
                     <h3 style="color: var(--success-text); margin-bottom: 0.5rem; font-weight: 600;">Karibu Tena!</h3>
                     <p style="font-size: 0.875rem; color: var(--text-main); margin-bottom: 1rem;">
                         Una kifurushi kinachoendelea ambacho kitaisha muda wake tarehe {{ \Carbon\Carbon::parse($activeTxn->expires_at)->format('d M Y, H:i') }}.
@@ -250,7 +250,7 @@
                     @enderror
                 </div>
                 @else
-                <div style="background-color: var(--info-bg); border: 1px solid var(--info-border); border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; text-align: center;">
+                <div style="background-color: var(--info-bg); border: 1px solid rgba(216, 221, 230, 0.9); border-radius: 18px; padding: 1rem; margin-bottom: 1.5rem; text-align: center;">
                     <p style="font-size: 0.875rem; color: var(--info-text); margin-bottom: 0.5rem;">
                         Simu yako imebadili MAC Address na umekatika?
                     </p>
