@@ -38,6 +38,9 @@
                     <a href="{{ route('admin.router') }}" class="sidebar-link flex items-center px-4 py-2 text-sm font-medium {{ request()->routeIs('admin.router') ? 'bg-gray-800 text-white' : '' }}">
                         <svg class="w-5 h-5 mr-3 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
                         Router Panel
+                    </a>                    <a href="{{ route('admin.queues') }}" class="sidebar-link flex items-center px-4 py-2 text-sm font-medium {{ request()->routeIs('admin.queues') ? 'bg-gray-800 text-white' : '' }}">
+                        <svg class="w-5 h-5 mr-3 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16M4 12h16M4 17h16"></path></svg>
+                        Simple Queues
                     </a>                    <a href="{{ route('admin.packages') }}" class="sidebar-link flex items-center px-4 py-2 text-sm font-medium {{ request()->routeIs('admin.packages') ? 'bg-gray-800 text-white' : '' }}">
                         <svg class="w-5 h-5 mr-3 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
                         Manage Packages

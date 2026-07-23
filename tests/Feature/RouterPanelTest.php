@@ -10,7 +10,7 @@ class RouterPanelTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_router_panel_displays_router_health_snapshot()
+    public function test_router_panel_displays_router_health_snapshot_with_host_count()
     {
         $this->app->bind(RouterClient::class, function () {
             $mock = \Mockery::mock(RouterClient::class);
@@ -27,29 +27,14 @@ class RouterPanelTest extends TestCase
                 'free-memory' => '750000',
             ]]);
 
-            $mock->shouldReceive('query')->with('/ip/hotspot/active/print')->once()->andReturnSelf();
-            $mock->shouldReceive('read')->once()->andReturn([[
-                'user' => 'AA:BB',
-                'address' => '192.168.88.23',
-                'mac-address' => 'AA:BB:CC:DD:EE:FF',
-                'uptime' => '10m',
-                'idle-time' => '1m',
-                'bytes-in' => '1024',
-                'bytes-out' => '2048',
-            ]]);
-
             $mock->shouldReceive('query')->with('/ip/hotspot/host/print')->once()->andReturnSelf();
-            $mock->shouldReceive('read')->once()->andReturn([['mac-address' => 'AA:BB']]);
+            $mock->shouldReceive('read')->once()->andReturn([
+                ['mac-address' => 'AA:BB:CC:DD:EE:FF'],
+                ['mac-address' => '11:22:33:44:55:66'],
+            ]);
 
             $mock->shouldReceive('query')->with('/queue/simple/print')->once()->andReturnSelf();
-            $mock->shouldReceive('read')->once()->andReturn([[
-                'name' => 'RateLimit_AA:BB',
-                'target' => '192.168.88.23/32',
-                'max-limit' => '2M/2M',
-                'rate' => '200k/500k',
-                'bytes' => '1024/2048',
-                'disabled' => 'false',
-            ]]);
+            $mock->shouldReceive('read')->once()->andReturn([['name' => 'RateLimit_AA:BB']]);
 
             $mock->shouldReceive('query')->with('/interface/print')->once()->andReturnSelf();
             $mock->shouldReceive('read')->once()->andReturn([[
@@ -69,10 +54,40 @@ class RouterPanelTest extends TestCase
         $response->assertSee('1d2h3m');
         $response->assertSee('7.15.1');
         $response->assertSee('ether1');
-        $response->assertSee('192.168.88.23');
-        $response->assertSee('AA:BB:CC:DD:EE:FF');
+        $response->assertSee('Hosts');
+        $response->assertSee('Queues');
+        $response->assertDontSee('Active Hotspot Users');
+        $response->assertDontSee('Simple Queues</h3>', false);
+    }
+
+    public function test_simple_queues_page_displays_queue_details()
+    {
+        $this->app->bind(RouterClient::class, function () {
+            $mock = \Mockery::mock(RouterClient::class);
+            $mock->shouldReceive('query')->with('/queue/simple/print')->once()->andReturnSelf();
+            $mock->shouldReceive('read')->once()->andReturn([[
+                'name' => 'RateLimit_AA:BB',
+                'target' => '192.168.88.23/32',
+                'max-limit' => '2M/2M',
+                'limit-at' => '0/0',
+                'rate' => '200k/500k',
+                'bytes' => '1024/2048',
+                'packets' => '10/20',
+                'disabled' => 'false',
+                'comment' => 'Selcom Txn TXN_1',
+            ]]);
+
+            return $mock;
+        });
+
+        $response = $this->withSession(['admin_logged_in' => true])->get(route('admin.queues'));
+
+        $response->assertStatus(200);
         $response->assertSee('RateLimit_AA:BB');
+        $response->assertSee('192.168.88.23/32');
         $response->assertSee('2M/2M');
+        $response->assertSee('200k/500k');
+        $response->assertSee('Selcom Txn TXN_1');
     }
 
     public function test_router_snapshot_returns_offline_payload_when_router_is_unreachable()

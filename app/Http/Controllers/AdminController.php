@@ -740,6 +740,35 @@ class AdminController extends Controller
         }
     }
 
+    public function routerQueues()
+    {
+        $queues = [];
+        $error = null;
+
+        try {
+            $routerClient = MikrotikService::getClient();
+            $queues = collect($routerClient->query('/queue/simple/print')->read())
+                ->map(fn ($queue) => [
+                    '.id' => $queue['.id'] ?? null,
+                    'name' => $queue['name'] ?? '-',
+                    'target' => $queue['target'] ?? '-',
+                    'max_limit' => $queue['max-limit'] ?? '-',
+                    'limit_at' => $queue['limit-at'] ?? '-',
+                    'rate' => $queue['rate'] ?? '-',
+                    'bytes' => $queue['bytes'] ?? '0/0',
+                    'packets' => $queue['packets'] ?? '0/0',
+                    'disabled' => ($queue['disabled'] ?? 'false') === 'true',
+                    'comment' => $queue['comment'] ?? '-',
+                ])
+                ->values()
+                ->all();
+        } catch (\Exception $e) {
+            $error = 'Failed to connect to MikroTik router: '.$e->getMessage();
+        }
+
+        return view('admin.queues', compact('queues', 'error'));
+    }
+
     public function routerPanel()
     {
         return view('admin.router', [
@@ -793,7 +822,6 @@ class AdminController extends Controller
 
             $identity = $routerClient->query('/system/identity/print')->read();
             $resource = $routerClient->query('/system/resource/print')->read();
-            $active = $routerClient->query('/ip/hotspot/active/print')->read();
             $hosts = $routerClient->query('/ip/hotspot/host/print')->read();
             $queues = $routerClient->query('/queue/simple/print')->read();
             $interfaces = $routerClient->query('/interface/print')->read();
@@ -812,34 +840,9 @@ class AdminController extends Controller
                 'memory_used' => $usedMemoryPercent,
                 'free_memory' => isset($resourceRow['free-memory']) ? $this->formatBytes($resourceRow['free-memory']) : 'N/A',
                 'total_memory' => isset($resourceRow['total-memory']) ? $this->formatBytes($resourceRow['total-memory']) : 'N/A',
-                'active_hotspot_users' => count($active),
+                'active_hotspot_users' => count($hosts),
                 'hosts' => count($hosts),
                 'queues' => count($queues),
-                'active_users' => collect($active)
-                    ->take(25)
-                    ->map(fn ($user) => [
-                        'user' => $user['user'] ?? '-',
-                        'address' => $user['address'] ?? '-',
-                        'mac_address' => $user['mac-address'] ?? '-',
-                        'uptime' => $user['uptime'] ?? '-',
-                        'idle_time' => $user['idle-time'] ?? '-',
-                        'bytes_in' => isset($user['bytes-in']) ? $this->formatBytes($user['bytes-in']) : '0 B',
-                        'bytes_out' => isset($user['bytes-out']) ? $this->formatBytes($user['bytes-out']) : '0 B',
-                    ])
-                    ->values()
-                    ->all(),
-                'queue_details' => collect($queues)
-                    ->take(25)
-                    ->map(fn ($queue) => [
-                        'name' => $queue['name'] ?? '-',
-                        'target' => $queue['target'] ?? '-',
-                        'max_limit' => $queue['max-limit'] ?? '-',
-                        'rate' => $queue['rate'] ?? '-',
-                        'bytes' => $queue['bytes'] ?? '0/0',
-                        'disabled' => ($queue['disabled'] ?? 'false') === 'true',
-                    ])
-                    ->values()
-                    ->all(),
                 'interfaces' => collect($interfaces)
                     ->take(8)
                     ->map(fn ($interface) => [
