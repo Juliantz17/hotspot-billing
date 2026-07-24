@@ -20,11 +20,24 @@ class RouterProvisioningService
 
     public function provisionAccess(object $session, string $commentPrefix): void
     {
-        $mac = $session->mac_address;
+        $originalMac = $session->mac_address;
+        $mac = $this->normalizeMacAddress($originalMac);
         $ip = $session->ip_address ?? null;
         $speedLimit = $this->normalizeSpeedLimit($session->speed_limit ?? null);
         $comment = $commentPrefix.' '.$session->transaction_id;
         $credentials = $this->credentialsForMac($mac);
+
+        if ($mac !== $originalMac) {
+            Log::info('Normalized MAC before MikroTik provisioning.', ['original_mac' => $originalMac, 'mac' => $mac]);
+        }
+
+        Log::info('Starting MikroTik provisioning.', [
+            'transaction_id' => $session->transaction_id ?? null,
+            'mac' => $mac,
+            'stored_ip' => $ip,
+            'username' => $credentials['username'],
+            'speed_limit' => $speedLimit,
+        ]);
 
         $this->removeActiveSessions($mac);
         $this->removeHotspotUsers($mac);
@@ -43,8 +56,8 @@ class RouterProvisioningService
             $query[] = '=rate-limit='.$speedLimit;
         }
 
-        $createdUser = $this->client()->query($query)->read();
-        $this->ensureHotspotUserCredentials($mac, $credentials, $createdUser);
+        $this->client()->query($query)->read();
+        $this->ensureHotspotUserCredentials($mac, $credentials);
 
         $ip = $this->resolveIpAddress($mac, $ip);
         $this->autoLogin($mac, $ip, $credentials);
@@ -53,6 +66,8 @@ class RouterProvisioningService
 
     public function removeMacAccess(string $mac, bool $includeCookies = false): void
     {
+        $mac = $this->normalizeMacAddress($mac);
+
         $this->removeActiveSessions($mac);
         $this->removeHotspotUsers($mac);
         $this->removeIpBindings($mac);
@@ -66,20 +81,67 @@ class RouterProvisioningService
 
     public function removeLoginState(string $mac): void
     {
+        $mac = $this->normalizeMacAddress($mac);
+
         $this->removeActiveSessions($mac);
         $this->removeHotspotUsers($mac);
     }
 
-    private function ensureHotspotUserCredentials(string $mac, array $credentials, array $createdUser = []): void
+    private function ensureHotspotUserCredentials(string $mac, array $credentials): void
     {
-        $numbers = $createdUser[0]['.id'] ?? $credentials['username'];
+        $hotspotUser = $this->findHotspotUser($credentials['username']);
+
+        if (empty($hotspotUser['.id'])) {
+            throw new \RuntimeException("MikroTik Hotspot user {$credentials['username']} was not created for MAC {$mac}.");
+        }
 
         $this->client()->query([
             '/ip/hotspot/user/set',
-            '=numbers='.$numbers,
+            '=numbers='.$hotspotUser['.id'],
             '=password='.$credentials['password'],
             '=mac-address='.$mac,
+            '=disabled=no',
         ])->read();
+
+        $verifiedUser = $this->findHotspotUser($credentials['username']);
+        $this->assertHotspotUserReady($mac, $credentials, $verifiedUser);
+
+        Log::info('MikroTik Hotspot user verified before auto-login.', [
+            'mac' => $mac,
+            'username' => $credentials['username'],
+            'router_user_id' => $verifiedUser['.id'] ?? null,
+            'profile' => $verifiedUser['profile'] ?? null,
+            'server' => $verifiedUser['server'] ?? null,
+            'disabled' => $verifiedUser['disabled'] ?? null,
+            'has_password_field' => array_key_exists('password', $verifiedUser),
+        ]);
+    }
+
+    private function findHotspotUser(string $username): ?array
+    {
+        $rows = $this->client()->query(['/ip/hotspot/user/print', '?name='.$username])->read();
+
+        return $rows[0] ?? null;
+    }
+
+    private function assertHotspotUserReady(string $mac, array $credentials, ?array $hotspotUser): void
+    {
+        if (empty($hotspotUser)) {
+            throw new \RuntimeException("MikroTik Hotspot user {$credentials['username']} could not be read back after creation.");
+        }
+
+        if (($hotspotUser['disabled'] ?? 'false') === 'true') {
+            throw new \RuntimeException("MikroTik Hotspot user {$credentials['username']} is disabled.");
+        }
+
+        $routerMac = $this->normalizeMacAddress($hotspotUser['mac-address'] ?? '');
+        if (! empty($routerMac) && $routerMac !== $mac) {
+            throw new \RuntimeException("MikroTik Hotspot user {$credentials['username']} has MAC {$routerMac}, expected {$mac}.");
+        }
+
+        if (array_key_exists('password', $hotspotUser) && $hotspotUser['password'] !== $credentials['password']) {
+            throw new \RuntimeException("MikroTik Hotspot user {$credentials['username']} password did not persist before auto-login.");
+        }
     }
 
     private function autoLogin(string $mac, ?string $ip, array $credentials): void
@@ -88,13 +150,26 @@ class RouterProvisioningService
             throw new \RuntimeException("Cannot auto-login MAC {$mac}: no IP address is available.");
         }
 
-        $this->client()->query([
+        Log::info('Attempting MikroTik Hotspot active login.', [
+            'mac' => $mac,
+            'ip' => $ip,
+            'username' => $credentials['username'],
+        ]);
+
+        $loginResponse = $this->client()->query([
             '/ip/hotspot/active/login',
             '=user='.$credentials['username'],
             '=password='.$credentials['password'],
             '=ip='.$ip,
             '=mac-address='.$mac,
         ])->read();
+
+        Log::info('MikroTik Hotspot active login command returned.', [
+            'mac' => $mac,
+            'ip' => $ip,
+            'username' => $credentials['username'],
+            'response' => $loginResponse,
+        ]);
 
         if (! $this->isActiveSessionPresent($mac, $ip)) {
             throw new \RuntimeException("MikroTik auto-login did not create an active Hotspot session for MAC {$mac}.");
@@ -118,7 +193,7 @@ class RouterProvisioningService
             }
         }
 
-        Log::warning("MikroTik auto-login verification failed for MAC {$mac}.", ['ip' => $ip]);
+        Log::warning('MikroTik auto-login verification failed.', ['mac' => $mac, 'ip' => $ip]);
 
         return false;
     }
@@ -145,17 +220,17 @@ class RouterProvisioningService
     private function resolveIpAddress(string $mac, ?string $ip): ?string
     {
         foreach ([
-            ['/ip/hotspot/active/print', '?mac-address='.$mac],
-            ['/ip/hotspot/host/print', '?mac-address='.$mac],
-            ['/ip/dhcp-server/lease/print', '?mac-address='.$mac],
-        ] as $query) {
+            'active' => ['/ip/hotspot/active/print', '?mac-address='.$mac],
+            'host' => ['/ip/hotspot/host/print', '?mac-address='.$mac],
+            'dhcp' => ['/ip/dhcp-server/lease/print', '?mac-address='.$mac],
+        ] as $source => $query) {
             try {
                 $rows = $this->client()->query($query)->read();
                 $resolvedIp = $rows[0]['address'] ?? null;
 
                 if (! empty($resolvedIp)) {
                     if (! empty($ip) && $ip !== $resolvedIp) {
-                        Log::info("Using current router IP {$resolvedIp} for MAC {$mac} instead of stored IP {$ip}.");
+                        Log::info("Using current router IP {$resolvedIp} for MAC {$mac} instead of stored IP {$ip}.", ['source' => $source]);
                     }
 
                     return $resolvedIp;
@@ -183,6 +258,17 @@ class RouterProvisioningService
         return $speedLimit;
     }
 
+    private function normalizeMacAddress(string $mac): string
+    {
+        $compactMac = strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $mac));
+
+        if (strlen($compactMac) === 12) {
+            return implode(':', str_split($compactMac, 2));
+        }
+
+        return strtoupper($mac);
+    }
+
     private function credentialsForMac(string $mac): array
     {
         $compactMac = strtolower(preg_replace('/[^a-fA-F0-9]/', '', $mac));
@@ -203,6 +289,7 @@ class RouterProvisioningService
         $credentials = $this->credentialsForMac($mac);
 
         $this->removeMatching(['/ip/hotspot/user/print', '?name='.$mac], '/ip/hotspot/user/remove');
+        $this->removeMatching(['/ip/hotspot/user/print', '?name='.strtolower($mac)], '/ip/hotspot/user/remove');
         $this->removeMatching(['/ip/hotspot/user/print', '?name='.$credentials['username']], '/ip/hotspot/user/remove');
         $this->removeMatching(['/ip/hotspot/user/print', '?mac-address='.$mac], '/ip/hotspot/user/remove');
     }
