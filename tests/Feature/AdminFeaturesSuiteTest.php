@@ -96,32 +96,6 @@ class AdminFeaturesSuiteTest extends TestCase
 
     public function test_live_active_sessions_list()
     {
-        DB::table('hotspot_transactions')->insert([
-            [
-                'transaction_id' => 'TXN_ROUTER_ACTIVE_USER',
-                'mac_address' => 'AA:BB:CC:DD:EE:11',
-                'phone_number' => '255700000011',
-                'amount' => 1000,
-                'speed_limit' => '5M/5M',
-                'status' => 'SUCCESS',
-                'duration_minutes' => 60,
-                'expires_at' => Carbon::now()->addMinutes(45),
-                'created_at' => Carbon::now(),
-                'updated_at' => Carbon::now(),
-            ],
-            [
-                'transaction_id' => 'TXN_PAID_NOT_ACTIVE_USER',
-                'mac_address' => 'AA:BB:CC:DD:EE:44',
-                'phone_number' => '255700000044',
-                'amount' => 500,
-                'speed_limit' => '3M/3M',
-                'status' => 'SUCCESS',
-                'duration_minutes' => 30,
-                'expires_at' => Carbon::now()->addMinutes(20),
-                'created_at' => Carbon::now(),
-                'updated_at' => Carbon::now(),
-            ],
-        ]);
 
         $this->app->bind(RouterClient::class, function () {
             $mock = \Mockery::mock(RouterClient::class);
@@ -178,6 +152,44 @@ class AdminFeaturesSuiteTest extends TestCase
                 ],
             ]);
 
+            $mock->shouldReceive('query')->with('/ip/hotspot/user/print')->once()->andReturnSelf();
+            $mock->shouldReceive('read')->once()->andReturn([
+                [
+                    '.id' => '*user1',
+                    'name' => 'hs_aabbccddee11',
+                    'mac-address' => 'AA:BB:CC:DD:EE:11',
+                    'profile' => 'default',
+                    'limit-uptime' => '01:00:00',
+                    'uptime' => '00:20:00',
+                    'bytes-in' => '512000',
+                    'bytes-out' => '1048576',
+                    'comment' => 'MikroTik user authenticated',
+                ],
+                [
+                    '.id' => '*user2',
+                    'name' => 'hs_aabbccddee44',
+                    'profile' => 'default',
+                    'limit-uptime' => '00:30:00',
+                    'uptime' => '00:00:00',
+                    'comment' => 'MikroTik user not authenticated',
+                ],
+            ]);
+
+            $mock->shouldReceive('query')->with('/ip/dhcp-server/lease/print')->once()->andReturnSelf();
+            $mock->shouldReceive('read')->once()->andReturn([
+                [
+                    '.id' => '*lease1',
+                    'mac-address' => 'AA:BB:CC:DD:EE:55',
+                    'address' => '192.168.88.2',
+                    'host-name' => 'pharmacy-ap',
+                    'status' => 'bound',
+                    'dynamic' => 'true',
+                    'last-seen' => '00:00:10',
+                    'expires-after' => '00:09:50',
+                    'comment' => 'DHCP AP lease',
+                ],
+            ]);
+
             $mock->shouldReceive('query')->with('/queue/simple/print')->once()->andReturnSelf();
             $mock->shouldReceive('read')->once()->andReturn([
                 [
@@ -195,9 +207,10 @@ class AdminFeaturesSuiteTest extends TestCase
         $response->assertStatus(200);
         $response->assertSee('Router Sessions & Bindings', false);
         $response->assertSee('Active Sessions');
-        $response->assertSee('Hosts');
+        $response->assertSee('Hotspot Hosts');
+        $response->assertSee('DHCP Leases');
         $response->assertSee('IP Bindings');
-        $response->assertSee('System Users');
+        $response->assertSee('Hotspot Users');
         $response->assertSee('AA:BB:CC:DD:EE:11');
         $response->assertSee('192.168.88.254');
         $response->assertSee('Authenticated');
@@ -216,12 +229,10 @@ class AdminFeaturesSuiteTest extends TestCase
         $response->assertSee('AA:BB:CC:DD:EE:33');
         $response->assertSee('Offline saved binding');
         $response->assertSee('Not Connected');
-        $response->assertSee('TXN_ROUTER_ACTIVE_USER');
-        $response->assertSee('TXN_PAID_NOT_ACTIVE_USER');
-        $response->assertSee('255700000044');
-        $response->assertSee('Package Active');
-        $response->assertSee('Router Active');
-        $response->assertSee('Paid But Not Active');
+        $response->assertSee('192.168.88.2');
+        $response->assertSee('pharmacy-ap');
+        $response->assertSee('Bound');
+        $response->assertSee('DHCP Only');
     }
 
     public function test_kick_active_session()
@@ -310,6 +321,7 @@ class AdminFeaturesSuiteTest extends TestCase
                 ['mac-address' => 'AA:BB:CC:DD:EE:02'],
                 ['mac-address' => 'AA:BB:CC:DD:EE:03'],
             ]);
+
 
             $mock->shouldReceive('query')->with('/queue/simple/print')->once()->andReturnSelf();
             $mock->shouldReceive('read')->once()->andReturn([

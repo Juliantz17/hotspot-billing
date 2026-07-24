@@ -35,7 +35,7 @@
 <div class="mb-6 bg-white border border-gray-300 shadow-sm p-4 rounded-sm flex flex-col gap-4 lg:flex-row lg:justify-between lg:items-center">
     <div>
         <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wide">Router Sessions & Bindings</h3>
-        <p class="text-xs text-gray-500 mt-1">Active shows authenticated logins only. Hosts show connected devices seen by hotspot. IP bindings show saved router rules. System Users show paid records from this portal.</p>
+        <p class="text-xs text-gray-500 mt-1">Active shows authenticated logins only. Hotspot Hosts show devices seen by hotspot. DHCP Leases show DHCP-connected devices. IP bindings show saved router rules. Hotspot Users show configured MikroTik users and whether they are authenticating.</p>
     </div>
     <div>
         <a href="{{ route('admin.active_sessions') }}" class="bg-gray-800 hover:bg-gray-700 text-white text-xs px-3 py-1.5 rounded-sm border border-gray-800 shadow-sm">
@@ -49,13 +49,16 @@
         Active Sessions <span class="ml-1 text-gray-500">{{ count($activeSessions) }}</span>
     </button>
     <button type="button" data-tab-button="hosts" class="session-tab px-3 py-2 rounded-sm text-xs font-semibold border">
-        Hosts <span class="ml-1 text-gray-500">{{ count($hostsList) }}</span>
+        Hotspot Hosts <span class="ml-1 text-gray-500">{{ count($hostsList) }}</span>
+    </button>
+    <button type="button" data-tab-button="dhcp" class="session-tab px-3 py-2 rounded-sm text-xs font-semibold border">
+        DHCP Leases <span class="ml-1 text-gray-500">{{ count($dhcpLeases) }}</span>
     </button>
     <button type="button" data-tab-button="bindings" class="session-tab px-3 py-2 rounded-sm text-xs font-semibold border">
         IP Bindings <span class="ml-1 text-gray-500">{{ count($ipBindings) }}</span>
     </button>
-    <button type="button" data-tab-button="system" class="session-tab px-3 py-2 rounded-sm text-xs font-semibold border">
-        System Users <span class="ml-1 text-gray-500">{{ count($systemUsers) }}</span>
+    <button type="button" data-tab-button="users" class="session-tab px-3 py-2 rounded-sm text-xs font-semibold border">
+        Hotspot Users <span class="ml-1 text-gray-500">{{ count($routerUsers) }}</span>
     </button>
 </div>
 
@@ -211,6 +214,68 @@
     </div>
 </div>
 
+
+<div data-tab-panel="dhcp" class="session-panel bg-white border border-gray-300 shadow-sm rounded-sm overflow-hidden">
+    <div class="px-4 py-3 border-b border-gray-200">
+        <h4 class="text-sm font-semibold text-gray-800">DHCP Leases</h4>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left whitespace-nowrap">
+            <thead class="table-header text-xs uppercase font-semibold">
+                <tr>
+                    <th class="px-4 py-2 border-r border-gray-600">IP Address</th>
+                    <th class="px-4 py-2 border-r border-gray-600">MAC</th>
+                    <th class="px-4 py-2 border-r border-gray-600">Host Name</th>
+                    <th class="px-4 py-2 border-r border-gray-600">DHCP Status</th>
+                    <th class="px-4 py-2 border-r border-gray-600">Router Seen</th>
+                    <th class="px-4 py-2 border-r border-gray-600">Last Seen / Expires</th>
+                    <th class="px-4 py-2">Comment</th>
+                </tr>
+            </thead>
+            <tbody class="text-gray-700">
+                @forelse($dhcpLeases as $lease)
+                <tr class="table-row border-b border-gray-200">
+                    <td class="px-4 py-2 font-mono text-xs font-semibold text-gray-900">{{ $lease['address'] }}</td>
+                    <td class="px-4 py-2 font-mono text-xs">{{ $lease['mac'] }}</td>
+                    <td class="px-4 py-2 text-xs">{{ $lease['host_name'] }}</td>
+                    <td class="px-4 py-2">
+                        @if($lease['disabled'])
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-gray-100 text-gray-700 border border-gray-300">Disabled</span>
+                        @elseif($lease['status'] === 'bound')
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-green-100 text-green-800 border border-green-300">Bound</span>
+                        @else
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">{{ $lease['status'] }}</span>
+                        @endif
+                        @if($lease['dynamic'])
+                            <span class="mt-1 inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">Dynamic</span>
+                        @endif
+                    </td>
+                    <td class="px-4 py-2">
+                        @if($lease['router_active'])
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-green-100 text-green-800 border border-green-300">Authenticated</span>
+                        @endif
+                        @if($lease['host_seen'])
+                            <span class="mt-1 inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">Hotspot Host</span>
+                        @endif
+                        @if($lease['has_binding'])
+                            <span class="mt-1 inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-slate-50 text-slate-700 border border-slate-200">Has Binding</span>
+                        @endif
+                        @if(!$lease['router_active'] && !$lease['host_seen'] && !$lease['has_binding'])
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-gray-100 text-gray-700 border border-gray-300">DHCP Only</span>
+                        @endif
+                    </td>
+                    <td class="px-4 py-2 font-mono text-xs text-gray-600">{{ $lease['last_seen'] }}<br><span class="text-gray-500">Expires: {{ $lease['expires_after'] }}</span></td>
+                    <td class="px-4 py-2 text-xs text-gray-500 italic max-w-sm truncate" title="{{ $lease['comment'] }}">{{ $lease['comment'] }}</td>
+                </tr>
+                @empty
+                <tr>
+                    <td colspan="7" class="px-4 py-6 text-center text-gray-500 text-sm">No DHCP leases found.</td>
+                </tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+</div>
 <div data-tab-panel="bindings" class="session-panel bg-white border border-gray-300 shadow-sm rounded-sm overflow-hidden">
     <div class="px-4 py-3 border-b border-gray-200">
         <h4 class="text-sm font-semibold text-gray-800">Hotspot IP Bindings</h4>
@@ -261,48 +326,44 @@
     </div>
 </div>
 
-<div data-tab-panel="system" class="session-panel bg-white border border-gray-300 shadow-sm rounded-sm overflow-hidden">
+<div data-tab-panel="users" class="session-panel bg-white border border-gray-300 shadow-sm rounded-sm overflow-hidden">
     <div class="px-4 py-3 border-b border-gray-200">
-        <h4 class="text-sm font-semibold text-gray-800">System Paid Users</h4>
+        <h4 class="text-sm font-semibold text-gray-800">MikroTik Hotspot Users</h4>
     </div>
     <div class="overflow-x-auto">
         <table class="w-full text-sm text-left whitespace-nowrap">
             <thead class="table-header text-xs uppercase font-semibold">
                 <tr>
-                    <th class="px-4 py-2 border-r border-gray-600">Transaction</th>
-                    <th class="px-4 py-2 border-r border-gray-600">Phone</th>
+                    <th class="px-4 py-2 border-r border-gray-600">User</th>
                     <th class="px-4 py-2 border-r border-gray-600">MAC</th>
-                    <th class="px-4 py-2 border-r border-gray-600">Package</th>
-                    <th class="px-4 py-2 border-r border-gray-600">Expires</th>
-                    <th class="px-4 py-2 border-r border-gray-600">System Status</th>
-                    <th class="px-4 py-2">Router Seen</th>
+                    <th class="px-4 py-2 border-r border-gray-600">Profile / Server</th>
+                    <th class="px-4 py-2 border-r border-gray-600">Uptime Limit</th>
+                    <th class="px-4 py-2 border-r border-gray-600">Used</th>
+                    <th class="px-4 py-2 border-r border-gray-600">Auth Check</th>
+                    <th class="px-4 py-2">Comment</th>
                 </tr>
             </thead>
             <tbody class="text-gray-700">
-                @forelse($systemUsers as $user)
+                @forelse($routerUsers as $user)
                 <tr class="table-row border-b border-gray-200">
-                    <td class="px-4 py-2 font-mono text-xs font-semibold text-gray-900">{{ $user['transaction_id'] }}</td>
-                    <td class="px-4 py-2 font-mono text-xs">{{ $user['phone_number'] }}</td>
+                    <td class="px-4 py-2 font-mono text-xs font-semibold text-gray-900">{{ $user['name'] }}</td>
                     <td class="px-4 py-2 font-mono text-xs">{{ $user['mac'] }}</td>
                     <td class="px-4 py-2 text-xs">
-                        <span class="font-semibold text-gray-900">TZS {{ number_format($user['amount']) }}</span><br>
-                        <span class="text-gray-500">{{ $user['duration_minutes'] }} min / {{ $user['speed_limit'] }}</span>
+                        <span class="font-semibold text-gray-900">{{ $user['profile'] }}</span><br>
+                        <span class="text-gray-500">{{ $user['server'] }}</span>
                     </td>
-                    <td class="px-4 py-2 font-mono text-xs">{{ $user['expires_at'] ?? '-' }}</td>
-                    <td class="px-4 py-2">
-                        @if($user['package_active'])
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-green-100 text-green-800 border border-green-300">Package Active</span>
-                        @else
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-red-50 text-red-700 border border-red-200">Package Expired</span>
-                        @endif
+                    <td class="px-4 py-2 font-mono text-xs">{{ $user['limit_uptime'] }}</td>
+                    <td class="px-4 py-2 font-mono text-xs text-gray-600">
+                        {{ $user['uptime'] }}<br>
+                        <span class="text-gray-400">Rx:</span> {{ formatBytes($user['bytes_in']) }} / <span class="text-gray-400">Tx:</span> {{ formatBytes($user['bytes_out']) }}
                     </td>
                     <td class="px-4 py-2">
-                        @if($user['router_active'])
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-green-100 text-green-800 border border-green-300">Router Active</span>
-                        @elseif($user['package_active'])
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">Paid But Not Active</span>
+                        @if($user['disabled'])
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-gray-100 text-gray-700 border border-gray-300">Disabled</span>
+                        @elseif($user['router_active'])
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-green-100 text-green-800 border border-green-300">Authenticated Now</span>
                         @else
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-gray-100 text-gray-700 border border-gray-300">Not Active</span>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">Not Authenticated</span>
                         @endif
                         @if($user['host_seen'])
                             <span class="mt-1 inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">Host Seen</span>
@@ -311,10 +372,11 @@
                             <span class="mt-1 inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-slate-50 text-slate-700 border border-slate-200">Has Binding</span>
                         @endif
                     </td>
+                    <td class="px-4 py-2 text-xs text-gray-500 italic max-w-sm truncate" title="{{ $user['comment'] }}">{{ $user['comment'] }}</td>
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="7" class="px-4 py-6 text-center text-gray-500 text-sm">No paid users found in the system.</td>
+                    <td colspan="7" class="px-4 py-6 text-center text-gray-500 text-sm">No MikroTik hotspot users found.</td>
                 </tr>
                 @endforelse
             </tbody>

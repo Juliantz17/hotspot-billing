@@ -691,7 +691,9 @@ class AdminController extends Controller
     {
         $activeSessions = [];
         $hostsList = [];
+        $dhcpLeases = [];
         $ipBindings = [];
+        $routerUsers = [];
         $activeMap = [];
         $hostsMap = [];
         $bindingsMap = [];
@@ -703,6 +705,8 @@ class AdminController extends Controller
             $activeUsers = $routerClient->query('/ip/hotspot/active/print')->read();
             $hosts = $routerClient->query('/ip/hotspot/host/print')->read();
             $bindings = $routerClient->query('/ip/hotspot/ip-binding/print')->read();
+            $hotspotUsers = $routerClient->query('/ip/hotspot/user/print')->read();
+            $leases = $routerClient->query('/ip/dhcp-server/lease/print')->read();
             $queues = $routerClient->query('/queue/simple/print')->read();
             foreach ($activeUsers as $activeUser) {
                 $mac = strtolower($activeUser['mac-address'] ?? $activeUser['user'] ?? '');
@@ -791,6 +795,56 @@ class AdminController extends Controller
                 ];
             }
 
+            foreach ($leases as $lease) {
+                $mac = strtolower($lease['mac-address'] ?? '');
+                if (empty($mac)) {
+                    continue;
+                }
+
+                $activeUser = $activeMap[$mac] ?? null;
+                $host = $hostsMap[$mac] ?? null;
+                $binding = $bindingsMap[$mac] ?? null;
+
+                $dhcpLeases[] = [
+                    '.id' => $lease['.id'] ?? null,
+                    'mac' => $lease['mac-address'] ?? strtoupper($mac),
+                    'address' => $lease['address'] ?? '-',
+                    'host_name' => $lease['host-name'] ?? '-',
+                    'server' => $lease['server'] ?? '-',
+                    'status' => $lease['status'] ?? '-',
+                    'dynamic' => ($lease['dynamic'] ?? 'false') === 'true',
+                    'disabled' => ($lease['disabled'] ?? 'false') === 'true',
+                    'last_seen' => $lease['last-seen'] ?? '-',
+                    'expires_after' => $lease['expires-after'] ?? '-',
+                    'router_active' => $activeUser !== null,
+                    'host_seen' => $host !== null,
+                    'has_binding' => $binding !== null,
+                    'comment' => $lease['comment'] ?? '-',
+                ];
+            }
+            foreach ($hotspotUsers as $hotspotUser) {
+                $mac = $this->macFromHotspotUser($hotspotUser);
+                $activeUser = $mac !== '' ? ($activeMap[$mac] ?? null) : null;
+                $host = $mac !== '' ? ($hostsMap[$mac] ?? null) : null;
+                $binding = $mac !== '' ? ($bindingsMap[$mac] ?? null) : null;
+
+                $routerUsers[] = [
+                    '.id' => $hotspotUser['.id'] ?? null,
+                    'name' => $hotspotUser['name'] ?? '-',
+                    'mac' => $hotspotUser['mac-address'] ?? ($mac !== '' ? strtoupper($mac) : '-'),
+                    'profile' => $hotspotUser['profile'] ?? '-',
+                    'server' => $hotspotUser['server'] ?? '-',
+                    'limit_uptime' => $hotspotUser['limit-uptime'] ?? '-',
+                    'uptime' => $hotspotUser['uptime'] ?? '-',
+                    'bytes_in' => $hotspotUser['bytes-in'] ?? '0',
+                    'bytes_out' => $hotspotUser['bytes-out'] ?? '0',
+                    'disabled' => ($hotspotUser['disabled'] ?? 'false') === 'true',
+                    'router_active' => $activeUser !== null,
+                    'host_seen' => $host !== null,
+                    'has_binding' => $binding !== null,
+                    'comment' => $hotspotUser['comment'] ?? '-',
+                ];
+            }
             foreach ($bindings as $binding) {
                 $mac = strtolower($binding['mac-address'] ?? '');
                 $activeUser = $mac !== '' ? ($activeMap[$mac] ?? null) : null;
@@ -814,36 +868,27 @@ class AdminController extends Controller
             $error = 'Failed to connect to MikroTik router: '.$e->getMessage();
         }
 
-        $systemUsers = DB::table('hotspot_transactions')
-            ->where('status', 'SUCCESS')
-            ->orderByRaw('expires_at IS NULL')
-            ->orderBy('expires_at', 'desc')
-            ->orderBy('created_at', 'desc')
-            ->limit(100)
-            ->get()
-            ->map(function ($transaction) use ($activeMap, $hostsMap, $bindingsMap) {
-                $mac = strtolower($transaction->mac_address ?? '');
-                $expiresAt = $transaction->expires_at ? Carbon::parse($transaction->expires_at) : null;
-                $isPackageActive = $expiresAt !== null && $expiresAt->isFuture();
+        return view('admin.active_sessions', compact('activeSessions', 'hostsList', 'dhcpLeases', 'ipBindings', 'routerUsers', 'error'));
 
-                return [
-                    'transaction_id' => $transaction->transaction_id,
-                    'phone_number' => $transaction->phone_number,
-                    'mac' => $transaction->mac_address,
-                    'amount' => $transaction->amount,
-                    'duration_minutes' => $transaction->duration_minutes,
-                    'speed_limit' => $transaction->speed_limit ?? '-',
-                    'expires_at' => $transaction->expires_at,
-                    'package_active' => $isPackageActive,
-                    'router_active' => $mac !== '' && isset($activeMap[$mac]),
-                    'host_seen' => $mac !== '' && isset($hostsMap[$mac]),
-                    'has_binding' => $mac !== '' && isset($bindingsMap[$mac]),
-                    'created_at' => $transaction->created_at,
-                ];
-            })
-            ->all();
+    }
 
-        return view('admin.active_sessions', compact('activeSessions', 'hostsList', 'ipBindings', 'systemUsers', 'error'));
+    private function macFromHotspotUser(array $hotspotUser): string
+    {
+        $mac = strtolower($hotspotUser['mac-address'] ?? '');
+        if ($mac !== '') {
+            return $mac;
+        }
+
+        $name = strtolower($hotspotUser['name'] ?? '');
+        if (preg_match('/^hs_([0-9a-f]{12})$/', $name, $matches) === 1) {
+            return implode(':', str_split($matches[1], 2));
+        }
+
+        if (preg_match('/^[0-9a-f]{2}(:[0-9a-f]{2}){5}$/', $name) === 1) {
+            return $name;
+        }
+
+        return '';
     }
 
     private function splitRouterCounter(?string $counter): array
