@@ -24,6 +24,7 @@ class RouterProvisioningService
         $ip = $session->ip_address ?? null;
         $speedLimit = $this->normalizeSpeedLimit($session->speed_limit ?? null);
         $comment = $commentPrefix.' '.$session->transaction_id;
+        $credentials = $this->credentialsForMac($mac);
 
         $this->removeActiveSessions($mac);
         $this->removeHotspotUsers($mac);
@@ -32,8 +33,8 @@ class RouterProvisioningService
 
         $query = [
             '/ip/hotspot/user/add',
-            '=name='.$mac,
-            '=password='.$mac,
+            '=name='.$credentials['username'],
+            '=password='.$credentials['password'],
             '=mac-address='.$mac,
             '=comment='.$comment,
         ];
@@ -44,8 +45,8 @@ class RouterProvisioningService
 
         $this->client()->query($query)->read();
 
-        $this->autoLogin($mac, $ip);
         $ip = $this->resolveIpAddress($mac, $ip);
+        $this->autoLogin($mac, $ip, $credentials);
         $this->syncSimpleQueue($mac, $ip, $speedLimit, $comment);
     }
 
@@ -68,23 +69,45 @@ class RouterProvisioningService
         $this->removeHotspotUsers($mac);
     }
 
-    private function autoLogin(string $mac, ?string $ip): void
+    private function autoLogin(string $mac, ?string $ip, array $credentials): void
     {
         if (empty($ip)) {
-            return;
+            throw new \RuntimeException("Cannot auto-login MAC {$mac}: no IP address is available.");
         }
 
-        try {
-            $this->client()->query([
-                '/ip/hotspot/active/login',
-                '=user='.$mac,
-                '=password='.$mac,
-                '=ip='.$ip,
-                '=mac-address='.$mac,
-            ])->read();
-        } catch (\Exception $e) {
-            Log::warning("Could not auto-login MAC {$mac}.", ['error' => $e->getMessage()]);
+        $this->client()->query([
+            '/ip/hotspot/active/login',
+            '=user='.$credentials['username'],
+            '=password='.$credentials['password'],
+            '=ip='.$ip,
+            '=mac-address='.$mac,
+        ])->read();
+
+        if (! $this->isActiveSessionPresent($mac, $ip)) {
+            throw new \RuntimeException("MikroTik auto-login did not create an active Hotspot session for MAC {$mac}.");
         }
+    }
+
+    private function isActiveSessionPresent(string $mac, ?string $ip): bool
+    {
+        for ($attempt = 0; $attempt < 3; $attempt++) {
+            $activeRows = $this->client()->query(['/ip/hotspot/active/print', '?mac-address='.$mac])->read();
+
+            foreach ($activeRows as $row) {
+                $rowIp = $row['address'] ?? null;
+                if (empty($ip) || empty($rowIp) || $rowIp === $ip) {
+                    return true;
+                }
+            }
+
+            if ($attempt < 2) {
+                usleep(250000);
+            }
+        }
+
+        Log::warning("MikroTik auto-login verification failed for MAC {$mac}.", ['ip' => $ip]);
+
+        return false;
     }
 
     private function syncSimpleQueue(string $mac, ?string $ip, ?string $speedLimit, string $comment): void
@@ -146,6 +169,16 @@ class RouterProvisioningService
         return $speedLimit;
     }
 
+    private function credentialsForMac(string $mac): array
+    {
+        $compactMac = strtolower(preg_replace('/[^a-fA-F0-9]/', '', $mac));
+
+        return [
+            'username' => 'hs_'.$compactMac,
+            'password' => 'hs_'.$compactMac.'_pw',
+        ];
+    }
+
     private function removeActiveSessions(string $mac): void
     {
         $this->removeMatching(['/ip/hotspot/active/print', '?mac-address='.$mac], '/ip/hotspot/active/remove');
@@ -153,7 +186,10 @@ class RouterProvisioningService
 
     private function removeHotspotUsers(string $mac): void
     {
+        $credentials = $this->credentialsForMac($mac);
+
         $this->removeMatching(['/ip/hotspot/user/print', '?name='.$mac], '/ip/hotspot/user/remove');
+        $this->removeMatching(['/ip/hotspot/user/print', '?name='.$credentials['username']], '/ip/hotspot/user/remove');
     }
 
     private function removeIpBindings(string $mac): void
