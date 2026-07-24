@@ -52,10 +52,6 @@ class RouterProvisioningService
             '=comment='.$comment,
         ];
 
-        if (! empty($speedLimit)) {
-            $query[] = '=rate-limit='.$speedLimit;
-        }
-
         $this->runRouterCommand($query, 'create hotspot user');
         $this->ensureHotspotUserCredentials($mac, $credentials);
 

@@ -44,7 +44,7 @@ class RouterProvisioningServiceTest extends TestCase
 
         app(RouterProvisioningService::class)->provisionAccess($session, 'Selcom Txn');
 
-        $this->assertContains(['/ip/hotspot/user/add', '=name=hs_aabbccddeeff', '=password=hs_aabbccddeeff_pw', '=mac-address=AA:BB:CC:DD:EE:FF', '=comment=Selcom Txn TXN_ROUTER_1', '=rate-limit=2M/2M'], $queries);
+        $this->assertContains(['/ip/hotspot/user/add', '=name=hs_aabbccddeeff', '=password=hs_aabbccddeeff_pw', '=mac-address=AA:BB:CC:DD:EE:FF', '=comment=Selcom Txn TXN_ROUTER_1'], $queries);
         $this->assertContains(['/ip/hotspot/user/set', '=numbers=*new-user', '=password=hs_aabbccddeeff_pw', '=mac-address=AA:BB:CC:DD:EE:FF', '=disabled=no'], $queries);
         $this->assertContains(['/ip/hotspot/active/login', '=user=hs_aabbccddeeff', '=password=hs_aabbccddeeff_pw', '=ip=192.168.88.10', '=mac-address=AA:BB:CC:DD:EE:FF'], $queries);
         $this->assertContains(['/queue/simple/add', '=name=RateLimit_AA:BB:CC:DD:EE:FF', '=target=192.168.88.10/32', '=max-limit=2M/2M', '=comment=Selcom Txn TXN_ROUTER_1'], $queries);
@@ -93,17 +93,17 @@ class RouterProvisioningServiceTest extends TestCase
         $queries = [];
         $mock = $this->mockRouterClient([
             [], [], [], [], [], [], [],
-            ['after' => ['message' => 'input does not match any value of rate-limit']],
+            ['after' => ['message' => 'router rejected user add']],
         ], $queries);
 
         $this->app->bind(RouterClient::class, fn () => $mock);
         Log::shouldReceive('info')->zeroOrMoreTimes();
         Log::shouldReceive('error')->once()->with('MikroTik command failed.', \Mockery::on(fn ($context) => ($context['action'] ?? null) === 'create hotspot user'
-            && ($context['message'] ?? null) === 'input does not match any value of rate-limit'));
+            && ($context['message'] ?? null) === 'router rejected user add'));
         Log::shouldReceive('warning')->never();
 
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('MikroTik create hotspot user failed: input does not match any value of rate-limit');
+        $this->expectExceptionMessage('MikroTik create hotspot user failed: router rejected user add');
 
         app(RouterProvisioningService::class)->provisionAccess($session, 'Selcom Txn');
 
