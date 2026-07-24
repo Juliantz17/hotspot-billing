@@ -261,6 +261,30 @@ class RouterProvisioningServiceTest extends TestCase
         $this->assertContains(['/ip/hotspot/user/print', '?name=aa:bb:cc:dd:ee:ff'], $queries);
     }
 
+    public function test_repair_rate_limit_queue_order_moves_rate_limit_queues_to_top()
+    {
+        $queries = [];
+        $mock = $this->mockRouterClient([
+            [
+                ['.id' => '*catchall', 'name' => 'hs-<hotspot1>'],
+                ['.id' => '*rate1', 'name' => 'RateLimit_DA:20:28:F4:D0:D3'],
+                ['.id' => '*rate2', 'name' => 'RateLimit_78:62:56:C5:52:61'],
+            ],
+            [],
+            [],
+        ], $queries);
+
+        $this->app->bind(RouterClient::class, fn () => $mock);
+        Log::shouldReceive('info')->zeroOrMoreTimes();
+        Log::shouldReceive('warning')->never();
+
+        app(RouterProvisioningService::class)->repairRateLimitQueueOrder();
+
+        $this->assertContains(['/queue/simple/move', '=numbers=*rate1', '=destination=0'], $queries);
+        $this->assertContains(['/queue/simple/move', '=numbers=*rate2', '=destination=0'], $queries);
+        $this->assertNotContains(['/queue/simple/move', '=numbers=*catchall', '=destination=0'], $queries);
+    }
+
     private function hotspotUser(string $username, string $password, string $mac): array
     {
         return [['.id' => '*new-user', 'name' => $username, 'password' => $password, 'mac-address' => $mac, 'disabled' => 'false']];

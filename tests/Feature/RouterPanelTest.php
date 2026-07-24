@@ -67,23 +67,25 @@ class RouterPanelTest extends TestCase
 
     public function test_simple_queues_page_displays_queue_details()
     {
-        $this->app->bind(RouterClient::class, function () {
-            $mock = \Mockery::mock(RouterClient::class);
-            $mock->shouldReceive('query')->with('/queue/simple/print')->once()->andReturnSelf();
-            $mock->shouldReceive('read')->once()->andReturn([[
-                'name' => 'RateLimit_AA:BB',
-                'target' => '192.168.88.23/32',
-                'max-limit' => '3000000/3000000',
-                'limit-at' => '0/0',
-                'rate' => '133944/403088',
-                'bytes' => '1024/2048',
-                'packets' => '10/20',
-                'disabled' => 'false',
-                'comment' => 'Selcom Txn TXN_1',
-            ]]);
+        $mock = \Mockery::mock(RouterClient::class);
+        $queue = [
+            '.id' => '*queue1',
+            'name' => 'RateLimit_AA:BB',
+            'target' => '192.168.88.23/32',
+            'max-limit' => '3000000/3000000',
+            'limit-at' => '0/0',
+            'rate' => '133944/403088',
+            'bytes' => '1024/2048',
+            'packets' => '10/20',
+            'disabled' => 'false',
+            'comment' => 'Selcom Txn TXN_1',
+        ];
 
-            return $mock;
-        });
+        $mock->shouldReceive('query')->with('/queue/simple/print')->twice()->andReturnSelf();
+        $mock->shouldReceive('query')->with(['/queue/simple/move', '=numbers=*queue1', '=destination=0'])->once()->andReturnSelf();
+        $mock->shouldReceive('read')->andReturn([$queue], [], [$queue]);
+
+        $this->app->bind(RouterClient::class, fn () => $mock);
 
         $response = $this->withSession(['admin_logged_in' => true])->get(route('admin.queues'));
 

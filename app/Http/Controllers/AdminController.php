@@ -919,6 +919,8 @@ class AdminController extends Controller
         $error = null;
 
         try {
+            app(RouterProvisioningService::class)->repairRateLimitQueueOrder();
+
             $routerClient = MikrotikService::getClient();
             $queues = collect($routerClient->query('/queue/simple/print')->read())
                 ->map(fn ($queue) => [

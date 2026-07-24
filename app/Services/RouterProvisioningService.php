@@ -100,6 +100,32 @@ class RouterProvisioningService
         $this->removeHotspotUsers($mac);
     }
 
+    public function repairRateLimitQueueOrder(): void
+    {
+        try {
+            $queues = $this->client()->query('/queue/simple/print')->read();
+        } catch (\Exception $e) {
+            Log::warning('Could not inspect simple queue order for repair.', ['error' => $e->getMessage()]);
+
+            return;
+        }
+
+        foreach ($queues as $queue) {
+            $name = $queue['name'] ?? '';
+            $id = $queue['.id'] ?? null;
+
+            if (empty($id) || ! str_starts_with($name, 'RateLimit_')) {
+                continue;
+            }
+
+            try {
+                $this->moveSimpleQueueToTop($id);
+            } catch (\Exception $e) {
+                Log::warning("Could not move simple queue {$name} to top.", ['queue_id' => $id, 'error' => $e->getMessage()]);
+            }
+        }
+    }
+
     private function ensureHotspotUserCredentials(string $mac, array $credentials): void
     {
         $hotspotUser = $this->findHotspotUser($credentials['username']);
@@ -258,14 +284,19 @@ class RouterProvisioningService
         }
 
         try {
-            $this->runRouterCommand([
-                '/queue/simple/move',
-                '=numbers='.$queue['.id'],
-                '=destination=0',
-            ], 'move simple queue to top');
+            $this->moveSimpleQueueToTop($queue['.id']);
         } catch (\Exception $e) {
             Log::warning("Could not move simple queue to top for MAC {$mac}.", ['error' => $e->getMessage()]);
         }
+    }
+
+    private function moveSimpleQueueToTop(string $queueId): void
+    {
+        $this->runRouterCommand([
+            '/queue/simple/move',
+            '=numbers='.$queueId,
+            '=destination=0',
+        ], 'move simple queue to top');
     }
 
     private function findSimpleQueue(string $mac): ?array
