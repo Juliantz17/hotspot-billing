@@ -455,6 +455,120 @@ class AdminFeaturesSuiteTest extends TestCase
         $response->assertSeeInOrder(['2026-07-24 19:54:39', '9A:F6:08:17:9A:2E', '192.168.88.164', '2']);
     }
 
+    public function test_analytics_tables_can_sort_in_both_directions()
+    {
+        $now = Carbon::parse('2026-07-24 20:00:00');
+
+        foreach (range(1, 3) as $minute) {
+            DB::table('checkout_visits')->insert([
+                'mac_address' => 'AA:AA:AA:AA:AA:01',
+                'ip_address' => '192.168.88.10',
+                'created_at' => $now->copy()->subMinutes($minute),
+                'updated_at' => $now->copy()->subMinutes($minute),
+            ]);
+        }
+
+        DB::table('checkout_visits')->insert([
+            'mac_address' => 'BB:BB:BB:BB:BB:02',
+            'ip_address' => '192.168.88.11',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        DB::table('packages')->insert([
+            [
+                'name' => 'Small Package',
+                'duration_minutes' => 60,
+                'price' => 500,
+                'speed_limit' => 3,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+            [
+                'name' => 'Popular Package',
+                'duration_minutes' => 120,
+                'price' => 1000,
+                'speed_limit' => 5,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+        ]);
+
+        foreach (range(1, 2) as $index) {
+            DB::table('hotspot_transactions')->insert([
+                'transaction_id' => 'SORT_POPULAR_'.$index,
+                'mac_address' => 'CC:CC:CC:CC:CC:0'.$index,
+                'phone_number' => '25570000000'.$index,
+                'amount' => 1000,
+                'duration_minutes' => 120,
+                'speed_limit' => 5,
+                'status' => 'SUCCESS',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }
+
+        DB::table('hotspot_transactions')->insert([
+            'transaction_id' => 'SORT_SMALL_1',
+            'mac_address' => 'DD:DD:DD:DD:DD:01',
+            'phone_number' => '255711111111',
+            'amount' => 500,
+            'duration_minutes' => 60,
+            'speed_limit' => 3,
+            'status' => 'SUCCESS',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        DB::table('hotspot_transactions')->insert([
+            'transaction_id' => 'SORT_VISITOR_PAID',
+            'mac_address' => 'AA:AA:AA:AA:AA:01',
+            'phone_number' => '255722222222',
+            'amount' => 1000,
+            'duration_minutes' => 120,
+            'speed_limit' => 5,
+            'status' => 'SUCCESS',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $descending = $this->withSession(['admin_logged_in' => true])->get(route('admin.analytics', [
+            'visit_sort' => 'visit_count',
+            'visit_direction' => 'desc',
+            'package_sort' => 'sales',
+            'package_direction' => 'desc',
+        ]));
+
+        $descending->assertOk();
+        $descending->assertSeeInOrder(['Popular Package', 'Small Package']);
+        $descending->assertSeeInOrder(['AA:AA:AA:AA:AA:01', 'BB:BB:BB:BB:BB:02']);
+        $descending->assertSee('Sort visits ascending');
+        $descending->assertSee('Sort visits descending');
+
+        $ascending = $this->withSession(['admin_logged_in' => true])->get(route('admin.analytics', [
+            'visit_sort' => 'visit_count',
+            'visit_direction' => 'asc',
+            'package_sort' => 'sales',
+            'package_direction' => 'asc',
+        ]));
+
+        $ascending->assertOk();
+        $ascending->assertSeeInOrder(['Small Package', 'Popular Package']);
+        $ascending->assertSeeInOrder(['BB:BB:BB:BB:BB:02', 'AA:AA:AA:AA:AA:01']);
+
+        $paidFirst = $this->withSession(['admin_logged_in' => true])->get(route('admin.analytics', [
+            'visit_sort' => 'status',
+            'visit_direction' => 'desc',
+        ]));
+        $paidFirst->assertSeeInOrder(['AA:AA:AA:AA:AA:01', 'BB:BB:BB:BB:BB:02']);
+
+        $stuckFirst = $this->withSession(['admin_logged_in' => true])->get(route('admin.analytics', [
+            'visit_sort' => 'status',
+            'visit_direction' => 'asc',
+        ]));
+        $stuckFirst->assertSeeInOrder(['BB:BB:BB:BB:BB:02', 'AA:AA:AA:AA:AA:01']);
+    }
+
     public function test_analytics_uses_active_hotspot_users_for_router_usage_and_still_shows_hosts()
     {
         $this->app->bind(RouterClient::class, function () {

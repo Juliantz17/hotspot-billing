@@ -105,11 +105,11 @@
         <table class="w-full text-sm text-left whitespace-nowrap">
             <thead class="table-header text-xs uppercase font-semibold">
                 <tr>
-                    <th class="px-4 py-2 border-r border-gray-600">Package Name</th>
-                    <th class="px-4 py-2 border-r border-gray-600">Duration</th>
-                    <th class="px-4 py-2 border-r border-gray-600">Price</th>
-                    <th class="px-4 py-2 border-r border-gray-600 text-center">Total Sales</th>
-                    <th class="px-4 py-2 text-right">Total Revenue</th>
+                    @include('admin.partials.sortable-table-header', ['label' => 'Package Name', 'sortPrefix' => 'package', 'sortField' => 'name', 'currentSort' => $packageSort, 'currentDirection' => $packageDirection])
+                    @include('admin.partials.sortable-table-header', ['label' => 'Duration', 'sortPrefix' => 'package', 'sortField' => 'duration_minutes', 'currentSort' => $packageSort, 'currentDirection' => $packageDirection])
+                    @include('admin.partials.sortable-table-header', ['label' => 'Price', 'sortPrefix' => 'package', 'sortField' => 'amount', 'currentSort' => $packageSort, 'currentDirection' => $packageDirection])
+                    @include('admin.partials.sortable-table-header', ['label' => 'Total Sales', 'sortPrefix' => 'package', 'sortField' => 'sales', 'currentSort' => $packageSort, 'currentDirection' => $packageDirection, 'align' => 'justify-center'])
+                    @include('admin.partials.sortable-table-header', ['label' => 'Total Revenue', 'sortPrefix' => 'package', 'sortField' => 'revenue', 'currentSort' => $packageSort, 'currentDirection' => $packageDirection, 'class' => 'px-4 py-2', 'align' => 'justify-end'])
                 </tr>
             </thead>
             <tbody class="text-gray-700">
@@ -143,11 +143,11 @@
     <table class="w-full text-sm text-left whitespace-nowrap">
         <thead class="table-header text-xs uppercase font-semibold">
             <tr>
-                <th class="px-4 py-2 border-r border-gray-600">Last Visit</th>
-                <th class="px-4 py-2 border-r border-gray-600">MAC Address</th>
-                <th class="px-4 py-2 border-r border-gray-600">IP Address</th>
-                <th class="px-4 py-2 border-r border-gray-600 text-center">Visits</th>
-                <th class="px-4 py-2 text-center">Status</th>
+                @include('admin.partials.sortable-table-header', ['label' => 'Last Visit', 'sortPrefix' => 'visit', 'sortField' => 'last_visit', 'currentSort' => $visitSort, 'currentDirection' => $visitDirection])
+                @include('admin.partials.sortable-table-header', ['label' => 'MAC Address', 'sortPrefix' => 'visit', 'sortField' => 'mac_address', 'currentSort' => $visitSort, 'currentDirection' => $visitDirection])
+                @include('admin.partials.sortable-table-header', ['label' => 'IP Address', 'sortPrefix' => 'visit', 'sortField' => 'ip_address', 'currentSort' => $visitSort, 'currentDirection' => $visitDirection])
+                @include('admin.partials.sortable-table-header', ['label' => 'Visits', 'sortPrefix' => 'visit', 'sortField' => 'visit_count', 'currentSort' => $visitSort, 'currentDirection' => $visitDirection, 'align' => 'justify-center'])
+                @include('admin.partials.sortable-table-header', ['label' => 'Status', 'sortPrefix' => 'visit', 'sortField' => 'status', 'currentSort' => $visitSort, 'currentDirection' => $visitDirection, 'class' => 'px-4 py-2', 'align' => 'justify-center'])
             </tr>
         </thead>
         <tbody class="text-gray-700">

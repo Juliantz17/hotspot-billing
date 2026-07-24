@@ -203,9 +203,23 @@ class AdminController extends Controller
         ];
     }
 
-    public function analytics()
+    public function analytics(Request $request)
     {
-        $visits = DB::table('checkout_visits')
+        $visitSort = $request->query('visit_sort', 'last_visit');
+        $visitDirection = $request->query('visit_direction', 'desc') === 'asc' ? 'asc' : 'desc';
+        $visitSortColumns = [
+            'last_visit' => 'last_visited_at',
+            'mac_address' => 'mac_address',
+            'ip_address' => 'ip_address',
+            'visit_count' => 'visit_count',
+            'status' => 'paid_after',
+        ];
+
+        if (! array_key_exists($visitSort, $visitSortColumns)) {
+            $visitSort = 'last_visit';
+        }
+
+        $groupedVisits = DB::table('checkout_visits')
             ->select(
                 'mac_address',
                 'ip_address',
@@ -213,9 +227,22 @@ class AdminController extends Controller
                 DB::raw('MAX(created_at) as last_visited_at'),
                 DB::raw('COUNT(*) as visit_count')
             )
-            ->groupBy('mac_address', 'ip_address')
-            ->orderByRaw('MAX(created_at) DESC')
-            ->paginate(20);
+            ->groupBy('mac_address', 'ip_address');
+
+        $visits = DB::query()
+            ->fromSub($groupedVisits, 'visit_groups')
+            ->select('visit_groups.*')
+            ->selectSub(function ($query) {
+                $query->from('hotspot_transactions')
+                    ->selectRaw('COUNT(*)')
+                    ->whereColumn('hotspot_transactions.mac_address', 'visit_groups.mac_address')
+                    ->where('hotspot_transactions.status', 'SUCCESS')
+                    ->whereColumn('hotspot_transactions.created_at', '>=', 'visit_groups.first_visited_at');
+            }, 'paid_after')
+            ->orderBy($visitSortColumns[$visitSort], $visitDirection)
+            ->orderByDesc('last_visited_at')
+            ->paginate(20)
+            ->withQueryString();
 
         $visits->getCollection()->transform(function ($visit) {
             $historyQuery = DB::table('checkout_visits')
@@ -229,11 +256,6 @@ class AdminController extends Controller
             }
 
             $visit->history = $historyQuery->get();
-            $visit->paid_after = DB::table('hotspot_transactions')
-                ->where('mac_address', $visit->mac_address)
-                ->where('status', 'SUCCESS')
-                ->where('created_at', '>=', $visit->first_visited_at)
-                ->count();
 
             return $visit;
         });
@@ -354,6 +376,28 @@ class AdminController extends Controller
                 $mostPopularPackageSales = $p->total_sales;
             }
         }
+
+        $packageSort = $request->query('package_sort', 'sales');
+        $packageDirection = $request->query('package_direction', 'desc') === 'asc' ? 'asc' : 'desc';
+        $packageSortFields = [
+            'name',
+            'duration_minutes',
+            'amount',
+            'sales',
+            'revenue',
+        ];
+
+        if (! in_array($packageSort, $packageSortFields, true)) {
+            $packageSort = 'sales';
+        }
+
+        usort($packagePopularity, function (array $left, array $right) use ($packageSort, $packageDirection) {
+            $comparison = $packageSort === 'name'
+                ? strcasecmp($left[$packageSort], $right[$packageSort])
+                : $left[$packageSort] <=> $right[$packageSort];
+
+            return $packageDirection === 'asc' ? $comparison : -$comparison;
+        });
 
         // Average Data Used Per Customer
         $avgDataUsedFormatted = 'N/A';
@@ -488,7 +532,11 @@ class AdminController extends Controller
             'avgDataUsedFormatted',
             'activeHotspotUsersCount',
             'connectedHostsCount',
-            'routerDataSource'
+            'routerDataSource',
+            'visitSort',
+            'visitDirection',
+            'packageSort',
+            'packageDirection'
         ));
     }
 
