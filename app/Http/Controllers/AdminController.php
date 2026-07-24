@@ -207,11 +207,36 @@ class AdminController extends Controller
     {
         $visits = DB::table('checkout_visits')
             ->select(
-                'checkout_visits.*',
-                DB::raw('(SELECT count(*) FROM hotspot_transactions WHERE hotspot_transactions.mac_address = checkout_visits.mac_address AND hotspot_transactions.status = "SUCCESS" AND hotspot_transactions.created_at >= checkout_visits.created_at) as paid_after')
+                'mac_address',
+                'ip_address',
+                DB::raw('MIN(created_at) as first_visited_at'),
+                DB::raw('MAX(created_at) as last_visited_at'),
+                DB::raw('COUNT(*) as visit_count')
             )
-            ->orderBy('created_at', 'desc')
+            ->groupBy('mac_address', 'ip_address')
+            ->orderByRaw('MAX(created_at) DESC')
             ->paginate(20);
+
+        $visits->getCollection()->transform(function ($visit) {
+            $historyQuery = DB::table('checkout_visits')
+                ->where('mac_address', $visit->mac_address)
+                ->orderBy('created_at', 'desc');
+
+            if ($visit->ip_address === null) {
+                $historyQuery->whereNull('ip_address');
+            } else {
+                $historyQuery->where('ip_address', $visit->ip_address);
+            }
+
+            $visit->history = $historyQuery->get();
+            $visit->paid_after = DB::table('hotspot_transactions')
+                ->where('mac_address', $visit->mac_address)
+                ->where('status', 'SUCCESS')
+                ->where('created_at', '>=', $visit->first_visited_at)
+                ->count();
+
+            return $visit;
+        });
 
         // Compute summary metrics
         $totalVisits = DB::table('checkout_visits')->count();

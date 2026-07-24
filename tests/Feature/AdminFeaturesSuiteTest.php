@@ -417,6 +417,44 @@ class AdminFeaturesSuiteTest extends TestCase
         $response->assertSee('50%');
     }
 
+    public function test_analytics_checkout_visits_are_grouped_by_mac_and_ip_with_history()
+    {
+        $oldVisit = Carbon::parse('2026-07-24 19:53:56');
+        $latestVisit = Carbon::parse('2026-07-24 19:54:39');
+
+        DB::table('checkout_visits')->insert([
+            [
+                'mac_address' => '9A:F6:08:17:9A:2E',
+                'ip_address' => '192.168.88.164',
+                'created_at' => $oldVisit,
+                'updated_at' => $oldVisit,
+            ],
+            [
+                'mac_address' => '9A:F6:08:17:9A:2E',
+                'ip_address' => '192.168.88.164',
+                'created_at' => $latestVisit,
+                'updated_at' => $latestVisit,
+            ],
+            [
+                'mac_address' => '78:62:56:C5:52:61',
+                'ip_address' => '192.168.88.233',
+                'created_at' => Carbon::parse('2026-07-24 19:36:34'),
+                'updated_at' => Carbon::parse('2026-07-24 19:36:34'),
+            ],
+        ]);
+
+        $response = $this->withSession(['admin_logged_in' => true])
+            ->get(route('admin.analytics'));
+
+        $response->assertStatus(200);
+        $response->assertSee('Grouped by MAC and IP');
+        $response->assertSee('2026-07-24 19:54:39');
+        $response->assertSee('2026-07-24 19:53:56');
+        $response->assertSee('9A:F6:08:17:9A:2E');
+        $response->assertSee('192.168.88.164');
+        $response->assertSeeInOrder(['2026-07-24 19:54:39', '9A:F6:08:17:9A:2E', '192.168.88.164', '2']);
+    }
+
     public function test_analytics_uses_active_hotspot_users_for_router_usage_and_still_shows_hosts()
     {
         $this->app->bind(RouterClient::class, function () {

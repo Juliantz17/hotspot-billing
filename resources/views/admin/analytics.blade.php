@@ -133,27 +133,37 @@
 
 <!-- Checkout Page Visitors Log -->
 <div class="mb-4 flex justify-between items-center">
-    <h3 class="text-sm font-bold text-gray-700 uppercase tracking-wide">Checkout Page Visitors Log</h3>
+    <div>
+        <h3 class="text-sm font-bold text-gray-700 uppercase tracking-wide">Checkout Page Visitors Log</h3>
+        <p class="text-xs text-gray-500 mt-1">Grouped by MAC and IP. Click a row to inspect previous visits.</p>
+    </div>
 </div>
 
 <div class="bg-white border border-gray-300 shadow-sm rounded-sm overflow-hidden">
     <table class="w-full text-sm text-left whitespace-nowrap">
         <thead class="table-header text-xs uppercase font-semibold">
             <tr>
-                <th class="px-4 py-2 border-r border-gray-600">Time of Visit</th>
+                <th class="px-4 py-2 border-r border-gray-600">Last Visit</th>
                 <th class="px-4 py-2 border-r border-gray-600">MAC Address</th>
                 <th class="px-4 py-2 border-r border-gray-600">IP Address</th>
+                <th class="px-4 py-2 border-r border-gray-600 text-center">Visits</th>
                 <th class="px-4 py-2 text-center">Status</th>
             </tr>
         </thead>
         <tbody class="text-gray-700">
             @forelse($visits as $visit)
-            <tr class="table-row border-b border-gray-200">
+            @php($historyId = 'visit-history-'.$loop->index)
+            <tr class="table-row border-b border-gray-200 cursor-pointer" onclick="document.getElementById('{{ $historyId }}').classList.toggle('hidden')">
                 <td class="px-4 py-2 font-mono text-xs">
-                    {{ \Carbon\Carbon::parse($visit->created_at)->format('Y-m-d H:i:s') }}
+                    {{ \Carbon\Carbon::parse($visit->last_visited_at)->format('Y-m-d H:i:s') }}
                 </td>
-                <td class="px-4 py-2 font-mono text-xs">{{ strtoupper($visit->mac_address) }}</td>
+                <td class="px-4 py-2 font-mono text-xs font-semibold text-gray-900">{{ strtoupper($visit->mac_address) }}</td>
                 <td class="px-4 py-2 font-mono text-xs">{{ $visit->ip_address ?: 'N/A' }}</td>
+                <td class="px-4 py-2 text-center font-mono text-xs">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded border border-gray-300 bg-gray-50 text-gray-800">
+                        {{ number_format($visit->visit_count) }}
+                    </span>
+                </td>
                 <td class="px-4 py-2 text-center">
                     @if($visit->paid_after > 0)
                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
@@ -166,9 +176,33 @@
                     @endif
                 </td>
             </tr>
+            <tr id="{{ $historyId }}" class="hidden border-b border-gray-200 bg-gray-50">
+                <td colspan="5" class="px-4 py-3">
+                    <div class="max-h-56 overflow-y-auto border border-gray-200 bg-white rounded-sm">
+                        <table class="w-full text-xs text-left">
+                            <thead class="bg-gray-100 text-gray-600 uppercase">
+                                <tr>
+                                    <th class="px-3 py-2 border-r border-gray-200">Past Visit Time</th>
+                                    <th class="px-3 py-2 border-r border-gray-200">MAC Address</th>
+                                    <th class="px-3 py-2">IP Address</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($visit->history as $historyVisit)
+                                <tr class="border-t border-gray-100">
+                                    <td class="px-3 py-2 font-mono">{{ \Carbon\Carbon::parse($historyVisit->created_at)->format('Y-m-d H:i:s') }}</td>
+                                    <td class="px-3 py-2 font-mono">{{ strtoupper($historyVisit->mac_address) }}</td>
+                                    <td class="px-3 py-2 font-mono">{{ $historyVisit->ip_address ?: 'N/A' }}</td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </td>
+            </tr>
             @empty
             <tr>
-                <td colspan="4" class="px-4 py-6 text-center text-gray-500 text-sm">No analytics data found yet.</td>
+                <td colspan="5" class="px-4 py-6 text-center text-gray-500 text-sm">No analytics data found yet.</td>
             </tr>
             @endforelse
         </tbody>
