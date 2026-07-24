@@ -86,6 +86,30 @@ class RouterProvisioningServiceTest extends TestCase
         $this->assertFalse($this->queriesContainPath($queries, '/ip/hotspot/ip-binding/add'));
     }
 
+    public function test_provision_access_surfaces_mikrotik_user_add_trap_message()
+    {
+        $session = (object) ['transaction_id' => 'TXN_TRAP', 'mac_address' => '78:62:56:C5:52:61', 'ip_address' => '192.168.88.233', 'speed_limit' => '5M/5M'];
+
+        $queries = [];
+        $mock = $this->mockRouterClient([
+            [], [], [], [], [], [], [],
+            ['after' => ['message' => 'input does not match any value of rate-limit']],
+        ], $queries);
+
+        $this->app->bind(RouterClient::class, fn () => $mock);
+        Log::shouldReceive('info')->zeroOrMoreTimes();
+        Log::shouldReceive('error')->once()->with('MikroTik command failed.', \Mockery::on(fn ($context) => ($context['action'] ?? null) === 'create hotspot user'
+            && ($context['message'] ?? null) === 'input does not match any value of rate-limit'));
+        Log::shouldReceive('warning')->never();
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('MikroTik create hotspot user failed: input does not match any value of rate-limit');
+
+        app(RouterProvisioningService::class)->provisionAccess($session, 'Selcom Txn');
+
+        $this->assertContains(['/ip/hotspot/user/add', '=name=hs_786256c55261', '=password=hs_786256c55261_pw', '=mac-address=78:62:56:C5:52:61', '=comment=Selcom Txn TXN_TRAP', '=rate-limit=5M/5M'], $queries);
+    }
+
     public function test_provision_access_fails_before_auto_login_when_hotspot_password_does_not_persist()
     {
         $session = (object) ['transaction_id' => 'TXN_BAD_USER', 'mac_address' => '78:62:56:C5:52:61', 'ip_address' => '192.168.88.233', 'speed_limit' => '5M/5M'];

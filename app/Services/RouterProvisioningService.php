@@ -56,7 +56,7 @@ class RouterProvisioningService
             $query[] = '=rate-limit='.$speedLimit;
         }
 
-        $this->client()->query($query)->read();
+        $this->runRouterCommand($query, 'create hotspot user');
         $this->ensureHotspotUserCredentials($mac, $credentials);
 
         $ip = $this->resolveIpAddress($mac, $ip);
@@ -95,13 +95,13 @@ class RouterProvisioningService
             throw new \RuntimeException("MikroTik Hotspot user {$credentials['username']} was not created for MAC {$mac}.");
         }
 
-        $this->client()->query([
+        $this->runRouterCommand([
             '/ip/hotspot/user/set',
             '=numbers='.$hotspotUser['.id'],
             '=password='.$credentials['password'],
             '=mac-address='.$mac,
             '=disabled=no',
-        ])->read();
+        ], 'set hotspot user credentials');
 
         $verifiedUser = $this->findHotspotUser($credentials['username']);
         $this->assertHotspotUserReady($mac, $credentials, $verifiedUser);
@@ -156,13 +156,13 @@ class RouterProvisioningService
             'username' => $credentials['username'],
         ]);
 
-        $loginResponse = $this->client()->query([
+        $loginResponse = $this->runRouterCommand([
             '/ip/hotspot/active/login',
             '=user='.$credentials['username'],
             '=password='.$credentials['password'],
             '=ip='.$ip,
             '=mac-address='.$mac,
-        ])->read();
+        ], 'hotspot active login');
 
         Log::info('MikroTik Hotspot active login command returned.', [
             'mac' => $mac,
@@ -205,13 +205,13 @@ class RouterProvisioningService
         }
 
         try {
-            $this->client()->query([
+            $this->runRouterCommand([
                 '/queue/simple/add',
                 '=name=RateLimit_'.$mac,
                 '=target='.$ip.'/32',
                 '=max-limit='.$speedLimit,
                 '=comment='.$comment,
-            ])->read();
+            ], 'create simple queue');
         } catch (\Exception $e) {
             Log::warning("Could not add simple queue for MAC {$mac}.", ['error' => $e->getMessage()]);
         }
@@ -241,6 +241,69 @@ class RouterProvisioningService
         }
 
         return $ip;
+    }
+
+    private function runRouterCommand(array|string $query, string $action): array
+    {
+        $response = $this->client()->query($query)->read();
+        $trapMessage = $this->routerTrapMessage($response);
+
+        if ($trapMessage !== null) {
+            Log::error('MikroTik command failed.', [
+                'action' => $action,
+                'query' => $this->redactRouterQuery($query),
+                'response' => $response,
+                'message' => $trapMessage,
+            ]);
+
+            throw new \RuntimeException("MikroTik {$action} failed: {$trapMessage}");
+        }
+
+        Log::info('MikroTik command succeeded.', [
+            'action' => $action,
+            'query' => $this->redactRouterQuery($query),
+            'response' => $response,
+        ]);
+
+        return is_array($response) ? $response : [];
+    }
+
+    private function routerTrapMessage(mixed $response): ?string
+    {
+        if (! is_array($response)) {
+            return null;
+        }
+
+        if (isset($response['after']['message'])) {
+            return (string) $response['after']['message'];
+        }
+
+        if (isset($response['message'])) {
+            return (string) $response['message'];
+        }
+
+        foreach ($response as $row) {
+            if (is_array($row) && isset($row['message'])) {
+                return (string) $row['message'];
+            }
+        }
+
+        return null;
+    }
+
+    private function redactRouterQuery(array|string $query): array|string
+    {
+        if (! is_array($query)) {
+            return $query;
+        }
+
+        return array_map(function ($part) {
+            if (is_string($part) && str_starts_with($part, '=password=')) {
+                return '=password=[redacted]';
+            }
+
+            return $part;
+        }, $query);
     }
 
     private function normalizeSpeedLimit(?string $speedLimit): ?string
@@ -320,7 +383,7 @@ class RouterProvisioningService
 
         foreach ($items as $item) {
             if (! empty($item['.id'])) {
-                $this->client()->query([$removePath, '=.id='.$item['.id']])->read();
+                $this->runRouterCommand([$removePath, '=.id='.$item['.id']], 'remove router item');
             }
         }
     }
