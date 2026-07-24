@@ -43,7 +43,8 @@ class RouterProvisioningService
             $query[] = '=rate-limit='.$speedLimit;
         }
 
-        $this->client()->query($query)->read();
+        $createdUser = $this->client()->query($query)->read();
+        $this->ensureHotspotUserCredentials($mac, $credentials, $createdUser);
 
         $ip = $this->resolveIpAddress($mac, $ip);
         $this->autoLogin($mac, $ip, $credentials);
@@ -67,6 +68,16 @@ class RouterProvisioningService
     {
         $this->removeActiveSessions($mac);
         $this->removeHotspotUsers($mac);
+    }
+
+    private function ensureHotspotUserCredentials(string $mac, array $credentials, array $createdUser = []): void
+    {
+        $this->client()->query([
+            '/ip/hotspot/user/set',
+            '=numbers='.$credentials['username'],
+            '=password='.$credentials['password'],
+            '=mac-address='.$mac,
+        ])->read();
     }
 
     private function autoLogin(string $mac, ?string $ip, array $credentials): void
@@ -190,6 +201,7 @@ class RouterProvisioningService
 
         $this->removeMatching(['/ip/hotspot/user/print', '?name='.$mac], '/ip/hotspot/user/remove');
         $this->removeMatching(['/ip/hotspot/user/print', '?name='.$credentials['username']], '/ip/hotspot/user/remove');
+        $this->removeMatching(['/ip/hotspot/user/print', '?mac-address='.$mac], '/ip/hotspot/user/remove');
     }
 
     private function removeIpBindings(string $mac): void

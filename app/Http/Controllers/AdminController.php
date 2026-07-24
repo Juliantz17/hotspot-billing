@@ -556,31 +556,7 @@ class AdminController extends Controller
         }
 
         try {
-            $routerClient = MikrotikService::getClient();
-
-            $bindings = $routerClient->query([
-                '/ip/hotspot/ip-binding/print',
-                '?mac-address='.$txn->mac_address,
-            ])->read();
-
-            if (! empty($bindings)) {
-                $routerClient->query([
-                    '/ip/hotspot/ip-binding/remove',
-                    '=.id='.$bindings[0]['.id'],
-                ])->read();
-            }
-
-            $queues = $routerClient->query([
-                '/queue/simple/print',
-                '?name=RateLimit_'.$txn->mac_address,
-            ])->read();
-
-            if (! empty($queues)) {
-                $routerClient->query([
-                    '/queue/simple/remove',
-                    '=.id='.$queues[0]['.id'],
-                ])->read();
-            }
+            app(RouterProvisioningService::class)->removeMacAccess($txn->mac_address, true);
 
             DB::table('hotspot_transactions')->where('id', $id)->update([
                 'expires_at' => now(),
@@ -589,12 +565,15 @@ class AdminController extends Controller
 
             Log::info("Admin kicked user Txn: {$txn->transaction_id}, MAC: {$txn->mac_address}");
 
-            return back()->with('success', 'User has been kicked out of the network.');
+            return back()->with('success', 'User has been kicked out of MikroTik and marked expired.');
 
-        } catch (\Exception $e) {
-            Log::error('Admin kick failed: '.$e->getMessage());
+        } catch (\Throwable $e) {
+            Log::error('Admin kick failed: '.$e->getMessage(), [
+                'transaction_id' => $txn->transaction_id ?? null,
+                'mac_address' => $txn->mac_address ?? null,
+            ]);
 
-            return back()->withErrors(['error' => 'Failed to connect to router to kick user.']);
+            return back()->withErrors(['error' => 'Failed to kick user from MikroTik: '.$e->getMessage()]);
         }
     }
 

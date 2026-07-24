@@ -159,6 +159,64 @@ class AdminFeaturesSuiteTest extends TestCase
         $response->assertSessionHasErrors(['error']);
     }
 
+    public function test_kick_transaction_removes_mikrotik_access_and_expires_transaction()
+    {
+        $id = DB::table('hotspot_transactions')->insertGetId([
+            'transaction_id' => 'TXN_ADMIN_KICK',
+            'mac_address' => 'AA:BB:CC:DD:EE:88',
+            'phone_number' => '255788000000',
+            'amount' => 1000,
+            'speed_limit' => '5M/5M',
+            'duration_minutes' => 60,
+            'status' => 'SUCCESS',
+            'expires_at' => Carbon::now()->addHour(),
+            'created_at' => Carbon::now(),
+            'updated_at' => Carbon::now(),
+        ]);
+
+        $routerProvisioning = \Mockery::mock(RouterProvisioningService::class);
+        $routerProvisioning->shouldReceive('removeMacAccess')
+            ->once()
+            ->with('AA:BB:CC:DD:EE:88', true);
+        $this->app->instance(RouterProvisioningService::class, $routerProvisioning);
+
+        $response = $this->withSession(['admin_logged_in' => true])
+            ->post(route('admin.kick', $id));
+
+        $response->assertRedirect();
+        $response->assertSessionHas('success', 'User has been kicked out of MikroTik and marked expired.');
+        $this->assertTrue(Carbon::parse(DB::table('hotspot_transactions')->where('id', $id)->value('expires_at'))->isPast());
+    }
+
+    public function test_kick_transaction_reports_mikrotik_cleanup_failure()
+    {
+        $id = DB::table('hotspot_transactions')->insertGetId([
+            'transaction_id' => 'TXN_ADMIN_KICK_FAIL',
+            'mac_address' => 'AA:BB:CC:DD:EE:99',
+            'phone_number' => '255799000000',
+            'amount' => 1000,
+            'speed_limit' => '5M/5M',
+            'duration_minutes' => 60,
+            'status' => 'SUCCESS',
+            'expires_at' => Carbon::now()->addHour(),
+            'created_at' => Carbon::now(),
+            'updated_at' => Carbon::now(),
+        ]);
+
+        $routerProvisioning = \Mockery::mock(RouterProvisioningService::class);
+        $routerProvisioning->shouldReceive('removeMacAccess')
+            ->once()
+            ->with('AA:BB:CC:DD:EE:99', true)
+            ->andThrow(new \RuntimeException('router cleanup failed'));
+        $this->app->instance(RouterProvisioningService::class, $routerProvisioning);
+
+        $response = $this->withSession(['admin_logged_in' => true])
+            ->post(route('admin.kick', $id));
+
+        $response->assertRedirect();
+        $response->assertSessionHasErrors(['error']);
+    }
+
     public function test_live_active_sessions_list()
     {
 
