@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Services\RouterProvisioningService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -92,6 +93,70 @@ class AdminFeaturesSuiteTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertJson(['online' => false, 'error' => 'Connection refused']);
+    }
+
+    public function test_extend_transaction_updates_expiry_and_reprovisions_router_access()
+    {
+        $expiresAt = Carbon::now()->addHour()->seconds(0);
+        $id = DB::table('hotspot_transactions')->insertGetId([
+            'transaction_id' => 'TXN_EXTEND_REPROVISION',
+            'mac_address' => 'AA:BB:CC:DD:EE:66',
+            'phone_number' => '255766000000',
+            'amount' => 1000,
+            'speed_limit' => '5M/5M',
+            'duration_minutes' => 60,
+            'status' => 'SUCCESS',
+            'expires_at' => $expiresAt,
+            'created_at' => Carbon::now(),
+            'updated_at' => Carbon::now(),
+        ]);
+
+        $routerProvisioning = \Mockery::mock(RouterProvisioningService::class);
+        $routerProvisioning->shouldReceive('provisionAccess')
+            ->once()
+            ->with(\Mockery::on(function ($transaction) {
+                return $transaction->transaction_id === 'TXN_EXTEND_REPROVISION'
+                    && $transaction->mac_address === 'AA:BB:CC:DD:EE:66';
+            }), 'Admin Extend Txn');
+        $this->app->instance(RouterProvisioningService::class, $routerProvisioning);
+
+        $response = $this->withSession(['admin_logged_in' => true])
+            ->post(route('admin.extend', $id), ['extend_hours' => 2]);
+
+        $response->assertRedirect();
+        $response->assertSessionHas('success', 'User package extended and router access restored successfully.');
+        $this->assertDatabaseHas('hotspot_transactions', [
+            'id' => $id,
+            'expires_at' => $expiresAt->copy()->addHours(2)->toDateTimeString(),
+        ]);
+    }
+
+    public function test_extend_transaction_reports_router_reprovision_failure()
+    {
+        $id = DB::table('hotspot_transactions')->insertGetId([
+            'transaction_id' => 'TXN_EXTEND_ROUTER_FAIL',
+            'mac_address' => 'AA:BB:CC:DD:EE:77',
+            'phone_number' => '255777000000',
+            'amount' => 1000,
+            'speed_limit' => '5M/5M',
+            'duration_minutes' => 60,
+            'status' => 'SUCCESS',
+            'expires_at' => Carbon::now()->addHour(),
+            'created_at' => Carbon::now(),
+            'updated_at' => Carbon::now(),
+        ]);
+
+        $routerProvisioning = \Mockery::mock(RouterProvisioningService::class);
+        $routerProvisioning->shouldReceive('provisionAccess')
+            ->once()
+            ->andThrow(new \RuntimeException('router login failed'));
+        $this->app->instance(RouterProvisioningService::class, $routerProvisioning);
+
+        $response = $this->withSession(['admin_logged_in' => true])
+            ->post(route('admin.extend', $id), ['extend_hours' => 1]);
+
+        $response->assertRedirect();
+        $response->assertSessionHasErrors(['error']);
     }
 
     public function test_live_active_sessions_list()
@@ -321,7 +386,6 @@ class AdminFeaturesSuiteTest extends TestCase
                 ['mac-address' => 'AA:BB:CC:DD:EE:02'],
                 ['mac-address' => 'AA:BB:CC:DD:EE:03'],
             ]);
-
 
             $mock->shouldReceive('query')->with('/queue/simple/print')->once()->andReturnSelf();
             $mock->shouldReceive('read')->once()->andReturn([

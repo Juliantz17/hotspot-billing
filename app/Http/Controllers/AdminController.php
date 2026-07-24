@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Events\WifiPaymentSuccess;
 use App\Services\MikrotikService;
+use App\Services\RouterProvisioningService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -520,14 +521,30 @@ class AdminController extends Controller
             return back()->withErrors(['error' => 'Can only extend active (SUCCESS) transactions.']);
         }
 
-        $newExpiry = Carbon::parse($txn->expires_at)->addHours((float) $request->extend_hours);
+        $baseExpiry = $txn->expires_at ? Carbon::parse($txn->expires_at) : now();
+        $newExpiry = $baseExpiry->isFuture()
+            ? $baseExpiry->addHours((float) $request->extend_hours)
+            : now()->addHours((float) $request->extend_hours);
 
         DB::table('hotspot_transactions')->where('id', $id)->update([
             'expires_at' => $newExpiry,
             'updated_at' => now(),
         ]);
 
-        return back()->with('success', 'User package extended successfully.');
+        $updatedTxn = DB::table('hotspot_transactions')->where('id', $id)->first();
+
+        try {
+            app(RouterProvisioningService::class)->provisionAccess($updatedTxn, 'Admin Extend Txn');
+        } catch (\Throwable $e) {
+            Log::error('Failed to re-provision extended user on MikroTik: '.$e->getMessage(), [
+                'transaction_id' => $updatedTxn->transaction_id ?? null,
+                'mac_address' => $updatedTxn->mac_address ?? null,
+            ]);
+
+            return back()->withErrors(['error' => 'Package time was extended, but router access could not be restored: '.$e->getMessage()]);
+        }
+
+        return back()->with('success', 'User package extended and router access restored successfully.');
     }
 
     public function kick($id)
