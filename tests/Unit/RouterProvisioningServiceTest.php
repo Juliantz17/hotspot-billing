@@ -9,7 +9,7 @@ use Tests\TestCase;
 
 class RouterProvisioningServiceTest extends TestCase
 {
-    public function test_provision_access_uses_verified_hotspot_credentials_without_creating_bypass_binding()
+    public function test_provision_access_creates_missing_hotspot_user_without_bypass_binding()
     {
         $session = (object) [
             'transaction_id' => 'TXN_ROUTER_1',
@@ -17,17 +17,14 @@ class RouterProvisioningServiceTest extends TestCase
             'ip_address' => '192.168.88.10',
             'speed_limit' => '2M/2M',
         ];
+        $user = $this->hotspotUser('hs_aabbccddeeff', 'hs_aabbccddeeff_pw', 'AA:BB:CC:DD:EE:FF');
 
-        $user = [['.id' => '*new-user', 'name' => 'hs_aabbccddeeff', 'password' => 'hs_aabbccddeeff_pw', 'mac-address' => 'AA:BB:CC:DD:EE:FF', 'disabled' => 'false']];
         $queries = [];
         $mock = $this->mockRouterClient([
-            [['.id' => '*active']], [],
-            [['.id' => '*old-user']], [],
-            [],
-            [['.id' => '*safe-user']], [],
-            [],
             [['.id' => '*binding']], [],
-            [['.id' => '*queue']], [],
+            [['.id' => '*legacy-user']], [],
+            [],
+            [],
             [],
             $user,
             [],
@@ -35,6 +32,9 @@ class RouterProvisioningServiceTest extends TestCase
             [['address' => '192.168.88.10']],
             [],
             [['.id' => '*active-new', 'address' => '192.168.88.10']],
+            [],
+            [],
+            [['.id' => '*queue-new']],
             [],
         ], $queries);
 
@@ -48,10 +48,52 @@ class RouterProvisioningServiceTest extends TestCase
         $this->assertContains(['/ip/hotspot/user/set', '=numbers=*new-user', '=password=hs_aabbccddeeff_pw', '=mac-address=AA:BB:CC:DD:EE:FF', '=disabled=no'], $queries);
         $this->assertContains(['/ip/hotspot/active/login', '=user=hs_aabbccddeeff', '=password=hs_aabbccddeeff_pw', '=ip=192.168.88.10', '=mac-address=AA:BB:CC:DD:EE:FF'], $queries);
         $this->assertContains(['/queue/simple/add', '=name=RateLimit_AA:BB:CC:DD:EE:FF', '=target=192.168.88.10/32', '=max-limit=2M/2M', '=comment=Selcom Txn TXN_ROUTER_1'], $queries);
+        $this->assertContains(['/queue/simple/move', '=numbers=*queue-new', '=destination=0'], $queries);
         $this->assertFalse($this->queriesContainPath($queries, '/ip/hotspot/ip-binding/add'));
+        $this->assertFalse($this->queriesContainPath($queries, '/ip/hotspot/active/remove'));
     }
 
-    public function test_provision_access_resolves_ip_before_creating_speed_limit_queue()
+    public function test_provision_access_preserves_existing_hotspot_user_and_updates_queue()
+    {
+        $session = (object) [
+            'transaction_id' => 'TXN_EXTEND_EXISTING',
+            'mac_address' => '78:62:56:C5:52:61',
+            'ip_address' => '192.168.88.200',
+            'speed_limit' => '5M/5M',
+        ];
+        $user = $this->hotspotUser('hs_786256c55261', 'hs_786256c55261_pw', '78:62:56:C5:52:61');
+
+        $queries = [];
+        $mock = $this->mockRouterClient([
+            [], [], [],
+            $user,
+            $user,
+            [],
+            $user,
+            [],
+            [['address' => '192.168.88.233']],
+            [],
+            [['.id' => '*active-new', 'address' => '192.168.88.233']],
+            [['.id' => '*queue']],
+            [],
+            [['.id' => '*queue']],
+            [],
+        ], $queries);
+
+        $this->app->bind(RouterClient::class, fn () => $mock);
+        Log::shouldReceive('info')->zeroOrMoreTimes();
+        Log::shouldReceive('warning')->never();
+
+        app(RouterProvisioningService::class)->provisionAccess($session, 'Admin Extend Txn');
+
+        $this->assertFalse($this->queriesContainPath($queries, '/ip/hotspot/user/add'));
+        $this->assertFalse($this->queriesContainPath($queries, '/ip/hotspot/active/remove'));
+        $this->assertContains(['/ip/hotspot/active/login', '=user=hs_786256c55261', '=password=hs_786256c55261_pw', '=ip=192.168.88.233', '=mac-address=78:62:56:C5:52:61'], $queries);
+        $this->assertContains(['/queue/simple/set', '=numbers=*queue', '=target=192.168.88.233/32', '=max-limit=5M/5M', '=comment=Admin Extend Txn TXN_EXTEND_EXISTING', '=disabled=no'], $queries);
+        $this->assertContains(['/queue/simple/move', '=numbers=*queue', '=destination=0'], $queries);
+    }
+
+    public function test_provision_access_resolves_hotspot_host_ip_before_creating_speed_limit_queue()
     {
         $session = (object) [
             'transaction_id' => 'TXN_ROUTER_2',
@@ -59,11 +101,12 @@ class RouterProvisioningServiceTest extends TestCase
             'ip_address' => null,
             'speed_limit' => '1M',
         ];
+        $user = $this->hotspotUser('hs_112233445566', 'hs_112233445566_pw', '11:22:33:44:55:66');
 
-        $user = [['.id' => '*new-user', 'name' => 'hs_112233445566', 'password' => 'hs_112233445566_pw', 'mac-address' => '11:22:33:44:55:66', 'disabled' => 'false']];
         $queries = [];
         $mock = $this->mockRouterClient([
-            [], [], [], [], [], [], [],
+            [], [], [],
+            [],
             [],
             $user,
             [],
@@ -72,6 +115,9 @@ class RouterProvisioningServiceTest extends TestCase
             [['address' => '192.168.88.25']],
             [],
             [['.id' => '*active-new', 'address' => '192.168.88.25']],
+            [],
+            [],
+            [['.id' => '*queue-new']],
             [],
         ], $queries);
 
@@ -83,7 +129,7 @@ class RouterProvisioningServiceTest extends TestCase
 
         $this->assertContains(['/ip/hotspot/active/login', '=user=hs_112233445566', '=password=hs_112233445566_pw', '=ip=192.168.88.25', '=mac-address=11:22:33:44:55:66'], $queries);
         $this->assertContains(['/queue/simple/add', '=name=RateLimit_11:22:33:44:55:66', '=target=192.168.88.25/32', '=max-limit=1M/1M', '=comment=Recovered Txn TXN_ROUTER_2'], $queries);
-        $this->assertFalse($this->queriesContainPath($queries, '/ip/hotspot/ip-binding/add'));
+        $this->assertContains(['/queue/simple/move', '=numbers=*queue-new', '=destination=0'], $queries);
     }
 
     public function test_provision_access_surfaces_mikrotik_user_add_trap_message()
@@ -92,7 +138,8 @@ class RouterProvisioningServiceTest extends TestCase
 
         $queries = [];
         $mock = $this->mockRouterClient([
-            [], [], [], [], [], [], [],
+            [], [], [],
+            [],
             ['after' => ['message' => 'router rejected user add']],
         ], $queries);
 
@@ -106,21 +153,21 @@ class RouterProvisioningServiceTest extends TestCase
         $this->expectExceptionMessage('MikroTik create hotspot user failed: router rejected user add');
 
         app(RouterProvisioningService::class)->provisionAccess($session, 'Selcom Txn');
-
-        $this->assertContains(['/ip/hotspot/user/add', '=name=hs_786256c55261', '=password=hs_786256c55261_pw', '=mac-address=78:62:56:C5:52:61', '=comment=Selcom Txn TXN_TRAP', '=rate-limit=5M/5M'], $queries);
     }
 
     public function test_provision_access_fails_before_auto_login_when_hotspot_password_does_not_persist()
     {
         $session = (object) ['transaction_id' => 'TXN_BAD_USER', 'mac_address' => '78:62:56:C5:52:61', 'ip_address' => '192.168.88.233', 'speed_limit' => '5M/5M'];
+        $badUser = $this->hotspotUser('hs_786256c55261', 'wrong', '78:62:56:C5:52:61');
 
         $queries = [];
         $mock = $this->mockRouterClient([
-            [], [], [], [], [], [], [],
+            [], [], [],
             [],
-            [['.id' => '*new-user', 'name' => 'hs_786256c55261', 'password' => 'wrong', 'mac-address' => '78:62:56:C5:52:61', 'disabled' => 'false']],
             [],
-            [['.id' => '*new-user', 'name' => 'hs_786256c55261', 'password' => 'wrong', 'mac-address' => '78:62:56:C5:52:61', 'disabled' => 'false']],
+            $badUser,
+            [],
+            $badUser,
         ], $queries);
 
         $this->app->bind(RouterClient::class, fn () => $mock);
@@ -136,11 +183,12 @@ class RouterProvisioningServiceTest extends TestCase
     public function test_provision_access_fails_when_auto_login_does_not_create_active_session()
     {
         $session = (object) ['transaction_id' => 'TXN_AUTH_FAIL', 'mac_address' => '78:62:56:C5:52:61', 'ip_address' => '192.168.88.233', 'speed_limit' => '5M/5M'];
-        $user = [['.id' => '*new-user', 'name' => 'hs_786256c55261', 'password' => 'hs_786256c55261_pw', 'mac-address' => '78:62:56:C5:52:61', 'disabled' => 'false']];
+        $user = $this->hotspotUser('hs_786256c55261', 'hs_786256c55261_pw', '78:62:56:C5:52:61');
 
         $queries = [];
         $mock = $this->mockRouterClient([
-            [], [], [], [], [], [], [],
+            [], [], [],
+            [],
             [],
             $user,
             [],
@@ -158,42 +206,6 @@ class RouterProvisioningServiceTest extends TestCase
         $this->expectExceptionMessage('MikroTik auto-login did not create an active Hotspot session');
 
         app(RouterProvisioningService::class)->provisionAccess($session, 'Auto-Reconnect Txn');
-
-        $this->assertFalse($this->queriesContainPath($queries, '/queue/simple/add'));
-    }
-
-    public function test_provision_access_prefers_current_hotspot_host_over_stored_ip()
-    {
-        $session = (object) [
-            'transaction_id' => 'TXN_STALE_IP',
-            'mac_address' => '22:33:44:55:66:77',
-            'ip_address' => '192.168.88.200',
-            'speed_limit' => '3M/3M',
-        ];
-
-        $user = [['.id' => '*new-user', 'name' => 'hs_223344556677', 'password' => 'hs_223344556677_pw', 'mac-address' => '22:33:44:55:66:77', 'disabled' => 'false']];
-        $queries = [];
-        $mock = $this->mockRouterClient([
-            [], [], [], [], [], [], [],
-            [],
-            $user,
-            [],
-            $user,
-            [], [],
-            [['address' => '192.168.88.77']],
-            [],
-            [['.id' => '*active-new', 'address' => '192.168.88.77']],
-            [],
-        ], $queries);
-
-        $this->app->bind(RouterClient::class, fn () => $mock);
-        Log::shouldReceive('info')->zeroOrMoreTimes();
-        Log::shouldReceive('warning')->never();
-
-        app(RouterProvisioningService::class)->provisionAccess($session, 'Admin Extend Txn');
-
-        $this->assertContains(['/ip/hotspot/active/login', '=user=hs_223344556677', '=password=hs_223344556677_pw', '=ip=192.168.88.77', '=mac-address=22:33:44:55:66:77'], $queries);
-        $this->assertContains(['/queue/simple/add', '=name=RateLimit_22:33:44:55:66:77', '=target=192.168.88.77/32', '=max-limit=3M/3M', '=comment=Admin Extend Txn TXN_STALE_IP'], $queries);
     }
 
     public function test_provision_access_prepares_user_without_error_when_device_has_no_current_hotspot_host()
@@ -204,11 +216,12 @@ class RouterProvisioningServiceTest extends TestCase
             'ip_address' => '192.168.88.233',
             'speed_limit' => '5M/5M',
         ];
+        $user = $this->hotspotUser('hs_786256c55261', 'hs_786256c55261_pw', '78:62:56:C5:52:61');
 
-        $user = [['.id' => '*new-user', 'name' => 'hs_786256c55261', 'password' => 'hs_786256c55261_pw', 'mac-address' => '78:62:56:C5:52:61', 'disabled' => 'false']];
         $queries = [];
         $mock = $this->mockRouterClient([
-            [], [], [], [], [], [], [],
+            [], [], [],
+            [],
             [],
             $user,
             [],
@@ -246,6 +259,11 @@ class RouterProvisioningServiceTest extends TestCase
         $this->assertContains(['/queue/simple/remove', '=.id=*queue1'], $queries);
         $this->assertContains(['/queue/simple/remove', '=.id=*queue2'], $queries);
         $this->assertContains(['/ip/hotspot/user/print', '?name=aa:bb:cc:dd:ee:ff'], $queries);
+    }
+
+    private function hotspotUser(string $username, string $password, string $mac): array
+    {
+        return [['.id' => '*new-user', 'name' => $username, 'password' => $password, 'mac-address' => $mac, 'disabled' => 'false']];
     }
 
     private function mockRouterClient(array $readResponses, array &$queries): RouterClient

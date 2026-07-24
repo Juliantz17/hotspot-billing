@@ -39,20 +39,26 @@ class RouterProvisioningService
             'speed_limit' => $speedLimit,
         ]);
 
-        $this->removeActiveSessions($mac);
-        $this->removeHotspotUsers($mac);
         $this->removeIpBindings($mac);
-        $this->removeSimpleQueues($mac);
+        $this->removeLegacyHotspotUsers($mac);
 
-        $query = [
-            '/ip/hotspot/user/add',
-            '=name='.$credentials['username'],
-            '=password='.$credentials['password'],
-            '=mac-address='.$mac,
-            '=comment='.$comment,
-        ];
+        $hotspotUser = $this->findHotspotUser($credentials['username']);
+        if (empty($hotspotUser['.id'])) {
+            $this->runRouterCommand([
+                '/ip/hotspot/user/add',
+                '=name='.$credentials['username'],
+                '=password='.$credentials['password'],
+                '=mac-address='.$mac,
+                '=comment='.$comment,
+            ], 'create hotspot user');
+        } else {
+            Log::info('MikroTik Hotspot user already exists; preserving router session while extending local package time.', [
+                'mac' => $mac,
+                'username' => $credentials['username'],
+                'router_user_id' => $hotspotUser['.id'] ?? null,
+            ]);
+        }
 
-        $this->runRouterCommand($query, 'create hotspot user');
         $this->ensureHotspotUserCredentials($mac, $credentials);
 
         $ip = $this->resolveHotspotLoginIp($mac, $ip);
@@ -212,6 +218,22 @@ class RouterProvisioningService
         }
 
         try {
+            $queue = $this->findSimpleQueue($mac);
+
+            if (! empty($queue['.id'])) {
+                $this->runRouterCommand([
+                    '/queue/simple/set',
+                    '=numbers='.$queue['.id'],
+                    '=target='.$ip.'/32',
+                    '=max-limit='.$speedLimit,
+                    '=comment='.$comment,
+                    '=disabled=no',
+                ], 'update simple queue');
+                $this->prioritizeSimpleQueue($mac);
+
+                return;
+            }
+
             $this->runRouterCommand([
                 '/queue/simple/add',
                 '=name=RateLimit_'.$mac,
@@ -219,9 +241,38 @@ class RouterProvisioningService
                 '=max-limit='.$speedLimit,
                 '=comment='.$comment,
             ], 'create simple queue');
+            $this->prioritizeSimpleQueue($mac);
         } catch (\Exception $e) {
-            Log::warning("Could not add simple queue for MAC {$mac}.", ['error' => $e->getMessage()]);
+            Log::warning("Could not sync simple queue for MAC {$mac}.", ['error' => $e->getMessage()]);
         }
+    }
+
+    private function prioritizeSimpleQueue(string $mac): void
+    {
+        $queue = $this->findSimpleQueue($mac);
+
+        if (empty($queue['.id'])) {
+            Log::warning("Could not prioritize simple queue for MAC {$mac}: queue was not found after sync.");
+
+            return;
+        }
+
+        try {
+            $this->runRouterCommand([
+                '/queue/simple/move',
+                '=numbers='.$queue['.id'],
+                '=destination=0',
+            ], 'move simple queue to top');
+        } catch (\Exception $e) {
+            Log::warning("Could not move simple queue to top for MAC {$mac}.", ['error' => $e->getMessage()]);
+        }
+    }
+
+    private function findSimpleQueue(string $mac): ?array
+    {
+        $rows = $this->client()->query(['/queue/simple/print', '?name=RateLimit_'.$mac])->read();
+
+        return $rows[0] ?? null;
     }
 
     private function resolveHotspotLoginIp(string $mac, ?string $ip): ?string
@@ -388,6 +439,12 @@ class RouterProvisioningService
     private function removeActiveSessions(string $mac): void
     {
         $this->removeMatching(['/ip/hotspot/active/print', '?mac-address='.$mac], '/ip/hotspot/active/remove');
+    }
+
+    private function removeLegacyHotspotUsers(string $mac): void
+    {
+        $this->removeMatching(['/ip/hotspot/user/print', '?name='.$mac], '/ip/hotspot/user/remove');
+        $this->removeMatching(['/ip/hotspot/user/print', '?name='.strtolower($mac)], '/ip/hotspot/user/remove');
     }
 
     private function removeHotspotUsers(string $mac): void
