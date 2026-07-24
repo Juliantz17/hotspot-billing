@@ -72,9 +72,11 @@ class RouterProvisioningService
 
     private function ensureHotspotUserCredentials(string $mac, array $credentials, array $createdUser = []): void
     {
+        $numbers = $createdUser[0]['.id'] ?? $credentials['username'];
+
         $this->client()->query([
             '/ip/hotspot/user/set',
-            '=numbers='.$credentials['username'],
+            '=numbers='.$numbers,
             '=password='.$credentials['password'],
             '=mac-address='.$mac,
         ])->read();
@@ -142,27 +144,28 @@ class RouterProvisioningService
 
     private function resolveIpAddress(string $mac, ?string $ip): ?string
     {
-        if (! empty($ip)) {
-            return $ip;
-        }
-
         foreach ([
             ['/ip/hotspot/active/print', '?mac-address='.$mac],
             ['/ip/hotspot/host/print', '?mac-address='.$mac],
+            ['/ip/dhcp-server/lease/print', '?mac-address='.$mac],
         ] as $query) {
             try {
                 $rows = $this->client()->query($query)->read();
                 $resolvedIp = $rows[0]['address'] ?? null;
 
                 if (! empty($resolvedIp)) {
+                    if (! empty($ip) && $ip !== $resolvedIp) {
+                        Log::info("Using current router IP {$resolvedIp} for MAC {$mac} instead of stored IP {$ip}.");
+                    }
+
                     return $resolvedIp;
                 }
             } catch (\Exception $e) {
-                Log::warning("Could not resolve IP address for MAC {$mac}.", ['error' => $e->getMessage()]);
+                Log::warning("Could not resolve IP address for MAC {$mac}.", ['query' => $query[0] ?? null, 'error' => $e->getMessage()]);
             }
         }
 
-        return null;
+        return $ip;
     }
 
     private function normalizeSpeedLimit(?string $speedLimit): ?string

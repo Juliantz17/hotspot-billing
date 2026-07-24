@@ -54,6 +54,8 @@ class RouterProvisioningServiceTest extends TestCase
         $mock->shouldReceive('read')->once()->andReturn([]);
         $mock->shouldReceive('query')->once()->with(['/ip/hotspot/user/set', '=numbers=hs_aabbccddeeff', '=password=hs_aabbccddeeff_pw', '=mac-address=AA:BB:CC:DD:EE:FF'])->andReturnSelf();
         $mock->shouldReceive('read')->once()->andReturn([]);
+        $mock->shouldReceive('query')->once()->with(['/ip/hotspot/active/print', '?mac-address=AA:BB:CC:DD:EE:FF'])->andReturnSelf();
+        $mock->shouldReceive('read')->once()->andReturn([['address' => '192.168.88.10']]);
         $mock->shouldReceive('query')->once()->with(['/ip/hotspot/active/login', '=user=hs_aabbccddeeff', '=password=hs_aabbccddeeff_pw', '=ip=192.168.88.10', '=mac-address=AA:BB:CC:DD:EE:FF'])->andReturnSelf();
         $mock->shouldReceive('read')->once()->andReturn([]);
         $mock->shouldReceive('query')->once()->with(['/ip/hotspot/active/print', '?mac-address=AA:BB:CC:DD:EE:FF'])->andReturnSelf();
@@ -124,6 +126,12 @@ class RouterProvisioningServiceTest extends TestCase
         $mock->shouldReceive('read')->once()->andReturn([]);
         $mock->shouldReceive('query')->once()->with(['/ip/hotspot/user/set', '=numbers=hs_786256c55261', '=password=hs_786256c55261_pw', '=mac-address=78:62:56:C5:52:61'])->andReturnSelf();
         $mock->shouldReceive('read')->once()->andReturn([]);
+        $mock->shouldReceive('query')->once()->with(['/ip/hotspot/active/print', '?mac-address=78:62:56:C5:52:61'])->andReturnSelf();
+        $mock->shouldReceive('read')->once()->andReturn([]);
+        $mock->shouldReceive('query')->once()->with(['/ip/hotspot/host/print', '?mac-address=78:62:56:C5:52:61'])->andReturnSelf();
+        $mock->shouldReceive('read')->once()->andReturn([]);
+        $mock->shouldReceive('query')->once()->with(['/ip/dhcp-server/lease/print', '?mac-address=78:62:56:C5:52:61'])->andReturnSelf();
+        $mock->shouldReceive('read')->once()->andReturn([]);
         $mock->shouldReceive('query')->once()->with(['/ip/hotspot/active/login', '=user=hs_786256c55261', '=password=hs_786256c55261_pw', '=ip=192.168.88.233', '=mac-address=78:62:56:C5:52:61'])->andReturnSelf();
         $mock->shouldReceive('read')->once()->andReturn([]);
         $mock->shouldReceive('query')->times(3)->with(['/ip/hotspot/active/print', '?mac-address=78:62:56:C5:52:61'])->andReturnSelf();
@@ -134,6 +142,54 @@ class RouterProvisioningServiceTest extends TestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('MikroTik auto-login did not create an active Hotspot session');
         app(RouterProvisioningService::class)->provisionAccess($session, 'Auto-Reconnect Txn');
+    }
+
+    public function test_provision_access_prefers_current_dhcp_lease_over_stored_ip()
+    {
+        $session = (object) [
+            'transaction_id' => 'TXN_STALE_IP',
+            'mac_address' => '22:33:44:55:66:77',
+            'ip_address' => '192.168.88.200',
+            'speed_limit' => '3M/3M',
+        ];
+
+        $mock = \Mockery::mock(RouterClient::class);
+
+        foreach ([['/ip/hotspot/active/print', '?mac-address=22:33:44:55:66:77'], ['/ip/hotspot/user/print', '?name=22:33:44:55:66:77'], ['/ip/hotspot/user/print', '?name=hs_223344556677'], ['/ip/hotspot/user/print', '?mac-address=22:33:44:55:66:77'], ['/ip/hotspot/ip-binding/print', '?mac-address=22:33:44:55:66:77'], ['/queue/simple/print', '?name=RateLimit_22:33:44:55:66:77']] as $query) {
+            $mock->shouldReceive('query')->once()->with($query)->andReturnSelf();
+            $mock->shouldReceive('read')->once()->andReturn([]);
+        }
+
+        $mock->shouldReceive('query')->once()->withArgs(fn ($query) => is_array($query)
+            && $query[0] === '/ip/hotspot/user/add'
+            && in_array('=name=hs_223344556677', $query)
+            && in_array('=password=hs_223344556677_pw', $query)
+            && in_array('=mac-address=22:33:44:55:66:77', $query)
+            && in_array('=rate-limit=3M/3M', $query)
+            && in_array('=comment=Admin Extend Txn TXN_STALE_IP', $query))->andReturnSelf();
+        $mock->shouldReceive('read')->once()->andReturn([['.id' => '*new-user']]);
+        $mock->shouldReceive('query')->once()->with(['/ip/hotspot/user/set', '=numbers=*new-user', '=password=hs_223344556677_pw', '=mac-address=22:33:44:55:66:77'])->andReturnSelf();
+        $mock->shouldReceive('read')->once()->andReturn([]);
+
+        $mock->shouldReceive('query')->once()->with(['/ip/hotspot/active/print', '?mac-address=22:33:44:55:66:77'])->andReturnSelf();
+        $mock->shouldReceive('read')->once()->andReturn([]);
+        $mock->shouldReceive('query')->once()->with(['/ip/hotspot/host/print', '?mac-address=22:33:44:55:66:77'])->andReturnSelf();
+        $mock->shouldReceive('read')->once()->andReturn([]);
+        $mock->shouldReceive('query')->once()->with(['/ip/dhcp-server/lease/print', '?mac-address=22:33:44:55:66:77'])->andReturnSelf();
+        $mock->shouldReceive('read')->once()->andReturn([['address' => '192.168.88.77']]);
+
+        $mock->shouldReceive('query')->once()->with(['/ip/hotspot/active/login', '=user=hs_223344556677', '=password=hs_223344556677_pw', '=ip=192.168.88.77', '=mac-address=22:33:44:55:66:77'])->andReturnSelf();
+        $mock->shouldReceive('read')->once()->andReturn([]);
+        $mock->shouldReceive('query')->once()->with(['/ip/hotspot/active/print', '?mac-address=22:33:44:55:66:77'])->andReturnSelf();
+        $mock->shouldReceive('read')->once()->andReturn([['.id' => '*active-new', 'address' => '192.168.88.77']]);
+        $mock->shouldReceive('query')->once()->with(['/queue/simple/add', '=name=RateLimit_22:33:44:55:66:77', '=target=192.168.88.77/32', '=max-limit=3M/3M', '=comment=Admin Extend Txn TXN_STALE_IP'])->andReturnSelf();
+        $mock->shouldReceive('read')->once()->andReturn([]);
+
+        $this->app->bind(RouterClient::class, fn () => $mock);
+        Log::shouldReceive('info')->once();
+        Log::shouldReceive('warning')->never();
+
+        app(RouterProvisioningService::class)->provisionAccess($session, 'Admin Extend Txn');
     }
 
     public function test_remove_mac_access_removes_every_matching_simple_queue()
