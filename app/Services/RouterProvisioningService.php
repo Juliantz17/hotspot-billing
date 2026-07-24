@@ -55,7 +55,7 @@ class RouterProvisioningService
         $this->runRouterCommand($query, 'create hotspot user');
         $this->ensureHotspotUserCredentials($mac, $credentials);
 
-        $ip = $this->resolveIpAddress($mac, $ip);
+        $ip = $this->resolveHotspotLoginIp($mac, $ip);
         $this->autoLogin($mac, $ip, $credentials);
         $this->syncSimpleQueue($mac, $ip, $speedLimit, $comment);
     }
@@ -213,30 +213,57 @@ class RouterProvisioningService
         }
     }
 
-    private function resolveIpAddress(string $mac, ?string $ip): ?string
+    private function resolveHotspotLoginIp(string $mac, ?string $ip): ?string
     {
-        foreach ([
-            'active' => ['/ip/hotspot/active/print', '?mac-address='.$mac],
-            'host' => ['/ip/hotspot/host/print', '?mac-address='.$mac],
-            'dhcp' => ['/ip/dhcp-server/lease/print', '?mac-address='.$mac],
-        ] as $source => $query) {
-            try {
-                $rows = $this->client()->query($query)->read();
-                $resolvedIp = $rows[0]['address'] ?? null;
+        foreach ($this->macVariants($mac) as $macVariant) {
+            foreach ([
+                'active' => ['/ip/hotspot/active/print', '?mac-address='.$macVariant],
+                'host' => ['/ip/hotspot/host/print', '?mac-address='.$macVariant],
+            ] as $source => $query) {
+                $resolvedIp = $this->firstRouterAddress($query, $mac, $source);
 
                 if (! empty($resolvedIp)) {
                     if (! empty($ip) && $ip !== $resolvedIp) {
-                        Log::info("Using current router IP {$resolvedIp} for MAC {$mac} instead of stored IP {$ip}.", ['source' => $source]);
+                        Log::info("Using current Hotspot {$source} IP {$resolvedIp} for MAC {$mac} instead of stored IP {$ip}.");
                     }
 
                     return $resolvedIp;
                 }
-            } catch (\Exception $e) {
-                Log::warning("Could not resolve IP address for MAC {$mac}.", ['query' => $query[0] ?? null, 'error' => $e->getMessage()]);
             }
         }
 
-        return $ip;
+        if (! empty($ip)) {
+            foreach ([
+                'active' => ['/ip/hotspot/active/print', '?address='.$ip],
+                'host' => ['/ip/hotspot/host/print', '?address='.$ip],
+            ] as $source => $query) {
+                $resolvedIp = $this->firstRouterAddress($query, $mac, $source);
+
+                if (! empty($resolvedIp)) {
+                    return $resolvedIp;
+                }
+            }
+        }
+
+        Log::warning('Cannot auto-login because MikroTik has no current Hotspot host for device.', [
+            'mac' => $mac,
+            'stored_ip' => $ip,
+        ]);
+
+        return null;
+    }
+
+    private function firstRouterAddress(array $query, string $mac, string $source): ?string
+    {
+        try {
+            $rows = $this->client()->query($query)->read();
+
+            return $rows[0]['address'] ?? null;
+        } catch (\Exception $e) {
+            Log::warning("Could not resolve Hotspot {$source} IP for MAC {$mac}.", ['query' => $query[0] ?? null, 'error' => $e->getMessage()]);
+
+            return null;
+        }
     }
 
     private function runRouterCommand(array|string $query, string $action): array
@@ -326,6 +353,15 @@ class RouterProvisioningService
         }
 
         return strtoupper($mac);
+    }
+
+    private function macVariants(string $mac): array
+    {
+        return array_values(array_unique([
+            $mac,
+            strtoupper($mac),
+            strtolower($mac),
+        ]));
     }
 
     private function credentialsForMac(string $mac): array

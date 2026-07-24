@@ -145,7 +145,7 @@ class RouterProvisioningServiceTest extends TestCase
             $user,
             [],
             $user,
-            [], [], [],
+            [], [['address' => '192.168.88.233']],
             [],
             [], [], [],
         ], $queries);
@@ -162,7 +162,7 @@ class RouterProvisioningServiceTest extends TestCase
         $this->assertFalse($this->queriesContainPath($queries, '/queue/simple/add'));
     }
 
-    public function test_provision_access_prefers_current_dhcp_lease_over_stored_ip()
+    public function test_provision_access_prefers_current_hotspot_host_over_stored_ip()
     {
         $session = (object) [
             'transaction_id' => 'TXN_STALE_IP',
@@ -194,6 +194,40 @@ class RouterProvisioningServiceTest extends TestCase
 
         $this->assertContains(['/ip/hotspot/active/login', '=user=hs_223344556677', '=password=hs_223344556677_pw', '=ip=192.168.88.77', '=mac-address=22:33:44:55:66:77'], $queries);
         $this->assertContains(['/queue/simple/add', '=name=RateLimit_22:33:44:55:66:77', '=target=192.168.88.77/32', '=max-limit=3M/3M', '=comment=Admin Extend Txn TXN_STALE_IP'], $queries);
+    }
+
+    public function test_provision_access_does_not_auto_login_with_dhcp_only_or_stored_ip()
+    {
+        $session = (object) [
+            'transaction_id' => 'TXN_UNKNOWN_HOST',
+            'mac_address' => '78:62:56:C5:52:61',
+            'ip_address' => '192.168.88.233',
+            'speed_limit' => '5M/5M',
+        ];
+
+        $user = [['.id' => '*new-user', 'name' => 'hs_786256c55261', 'password' => 'hs_786256c55261_pw', 'mac-address' => '78:62:56:C5:52:61', 'disabled' => 'false']];
+        $queries = [];
+        $mock = $this->mockRouterClient([
+            [], [], [], [], [], [], [],
+            [],
+            $user,
+            [],
+            $user,
+            [], [], [], [],
+            [], [],
+        ], $queries);
+
+        $this->app->bind(RouterClient::class, fn () => $mock);
+        Log::shouldReceive('info')->zeroOrMoreTimes();
+        Log::shouldReceive('warning')->once()->with('Cannot auto-login because MikroTik has no current Hotspot host for device.', \Mockery::type('array'));
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Cannot auto-login MAC 78:62:56:C5:52:61: no IP address is available.');
+
+        app(RouterProvisioningService::class)->provisionAccess($session, 'Admin Extend Txn');
+
+        $this->assertFalse($this->queriesContainPath($queries, '/ip/hotspot/active/login'));
+        $this->assertFalse($this->queriesContainPath($queries, '/queue/simple/add'));
     }
 
     public function test_remove_mac_access_removes_every_matching_simple_queue()
