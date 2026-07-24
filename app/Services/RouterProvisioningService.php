@@ -56,6 +56,17 @@ class RouterProvisioningService
         $this->ensureHotspotUserCredentials($mac, $credentials);
 
         $ip = $this->resolveHotspotLoginIp($mac, $ip);
+        if (empty($ip)) {
+            Log::warning('MikroTik user prepared but auto-login skipped because device is not currently visible in Hotspot hosts.', [
+                'transaction_id' => $session->transaction_id ?? null,
+                'mac' => $mac,
+                'stored_ip' => $session->ip_address ?? null,
+                'username' => $credentials['username'],
+            ]);
+
+            return;
+        }
+
         $this->autoLogin($mac, $ip, $credentials);
         $this->syncSimpleQueue($mac, $ip, $speedLimit, $comment);
     }

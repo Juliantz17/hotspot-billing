@@ -196,7 +196,7 @@ class RouterProvisioningServiceTest extends TestCase
         $this->assertContains(['/queue/simple/add', '=name=RateLimit_22:33:44:55:66:77', '=target=192.168.88.77/32', '=max-limit=3M/3M', '=comment=Admin Extend Txn TXN_STALE_IP'], $queries);
     }
 
-    public function test_provision_access_does_not_auto_login_with_dhcp_only_or_stored_ip()
+    public function test_provision_access_prepares_user_without_error_when_device_has_no_current_hotspot_host()
     {
         $session = (object) [
             'transaction_id' => 'TXN_UNKNOWN_HOST',
@@ -220,12 +220,12 @@ class RouterProvisioningServiceTest extends TestCase
         $this->app->bind(RouterClient::class, fn () => $mock);
         Log::shouldReceive('info')->zeroOrMoreTimes();
         Log::shouldReceive('warning')->once()->with('Cannot auto-login because MikroTik has no current Hotspot host for device.', \Mockery::type('array'));
-
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('Cannot auto-login MAC 78:62:56:C5:52:61: no IP address is available.');
+        Log::shouldReceive('warning')->once()->with('MikroTik user prepared but auto-login skipped because device is not currently visible in Hotspot hosts.', \Mockery::type('array'));
 
         app(RouterProvisioningService::class)->provisionAccess($session, 'Admin Extend Txn');
 
+        $this->assertContains(['/ip/hotspot/user/add', '=name=hs_786256c55261', '=password=hs_786256c55261_pw', '=mac-address=78:62:56:C5:52:61', '=comment=Admin Extend Txn TXN_UNKNOWN_HOST'], $queries);
+        $this->assertContains(['/ip/hotspot/user/set', '=numbers=*new-user', '=password=hs_786256c55261_pw', '=mac-address=78:62:56:C5:52:61', '=disabled=no'], $queries);
         $this->assertFalse($this->queriesContainPath($queries, '/ip/hotspot/active/login'));
         $this->assertFalse($this->queriesContainPath($queries, '/queue/simple/add'));
     }
