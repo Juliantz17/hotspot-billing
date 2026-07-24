@@ -690,7 +690,13 @@ class AdminController extends Controller
     public function activeSessions()
     {
         $activeSessions = [];
+        $hostsList = [];
+        $ipBindings = [];
+        $activeMap = [];
+        $hostsMap = [];
+        $bindingsMap = [];
         $error = null;
+
         try {
             $routerClient = MikrotikService::getClient();
 
@@ -698,15 +704,17 @@ class AdminController extends Controller
             $hosts = $routerClient->query('/ip/hotspot/host/print')->read();
             $bindings = $routerClient->query('/ip/hotspot/ip-binding/print')->read();
             $queues = $routerClient->query('/queue/simple/print')->read();
-
-            $hostsMap = [];
+            foreach ($activeUsers as $activeUser) {
+                $mac = strtolower($activeUser['mac-address'] ?? $activeUser['user'] ?? '');
+                if (! empty($mac)) {
+                    $activeMap[$mac] = $activeUser;
+                }
+            }
             foreach ($hosts as $host) {
                 if (! empty($host['mac-address'])) {
                     $hostsMap[strtolower($host['mac-address'])] = $host;
                 }
             }
-
-            $bindingsMap = [];
             foreach ($bindings as $binding) {
                 if (! empty($binding['mac-address'])) {
                     $bindingsMap[strtolower($binding['mac-address'])] = $binding;
@@ -721,27 +729,16 @@ class AdminController extends Controller
                 }
             }
 
-            $activeMacs = [];
             foreach ($activeUsers as $activeUser) {
                 $mac = strtolower($activeUser['mac-address'] ?? $activeUser['user'] ?? '');
                 if (empty($mac)) {
                     continue;
                 }
 
-                $activeMacs[$mac] = true;
                 $host = $hostsMap[$mac] ?? null;
                 $binding = $bindingsMap[$mac] ?? null;
                 $queue = $queuesMap[$mac] ?? null;
-                $queueUploadBytes = 0;
-                $queueDownloadBytes = 0;
-
-                if (! empty($queue['bytes'])) {
-                    $parts = explode('/', $queue['bytes']);
-                    if (count($parts) === 2) {
-                        $queueUploadBytes = floatval($parts[0]);
-                        $queueDownloadBytes = floatval($parts[1]);
-                    }
-                }
+                [$queueUploadBytes, $queueDownloadBytes] = $this->splitRouterCounter($queue['bytes'] ?? null);
 
                 $activeSessions[] = [
                     '.id' => $activeUser['.id'] ?? null,
@@ -750,8 +747,8 @@ class AdminController extends Controller
                     'mac' => $activeUser['mac-address'] ?? ($host['mac-address'] ?? strtoupper($mac)),
                     'address' => $activeUser['address'] ?? ($host['address'] ?? '-'),
                     'host_address' => $host['address'] ?? '-',
-                    'source' => 'active',
                     'host_seen' => $host !== null,
+                    'has_binding' => $binding !== null,
                     'uptime' => $activeUser['uptime'] ?? '-',
                     'idle-time' => $activeUser['idle-time'] ?? ($host['idle-time'] ?? '-'),
                     'rx-rate' => $activeUser['rx-rate'] ?? ($host['rx-rate'] ?? '-'),
@@ -763,50 +760,104 @@ class AdminController extends Controller
                     'comment' => $activeUser['comment'] ?? ($host['comment'] ?? ($binding['comment'] ?? '-')),
                 ];
             }
+
             foreach ($hosts as $host) {
                 $mac = strtolower($host['mac-address'] ?? '');
-                if (empty($mac) || isset($activeMacs[$mac])) {
+                if (empty($mac)) {
                     continue;
                 }
 
+                $activeUser = $activeMap[$mac] ?? null;
                 $binding = $bindingsMap[$mac] ?? null;
                 $queue = $queuesMap[$mac] ?? null;
-                $queueUploadBytes = 0;
-                $queueDownloadBytes = 0;
+                [$queueUploadBytes, $queueDownloadBytes] = $this->splitRouterCounter($queue['bytes'] ?? null);
 
-                if (! empty($queue['bytes'])) {
-                    $parts = explode('/', $queue['bytes']);
-                    if (count($parts) === 2) {
-                        $queueUploadBytes = floatval($parts[0]);
-                        $queueDownloadBytes = floatval($parts[1]);
-                    }
-                }
-
-                $activeSessions[] = [
-                    '.id' => null,
-                    'host_id' => $host['.id'] ?? null,
-                    'user' => $host['mac-address'] ?? strtoupper($mac),
+                $hostsList[] = [
+                    '.id' => $host['.id'] ?? null,
                     'mac' => $host['mac-address'] ?? strtoupper($mac),
                     'address' => $host['address'] ?? '-',
-                    'host_address' => $host['address'] ?? '-',
-                    'source' => 'host',
-                    'host_seen' => true,
-                    'uptime' => '-',
+                    'authenticated' => $activeUser !== null,
+                    'bypassed' => ($host['bypassed'] ?? 'false') === 'true',
+                    'has_binding' => $binding !== null,
                     'idle-time' => $host['idle-time'] ?? '-',
-                    'rx-rate' => $host['rx-rate'] ?? '-',
-                    'tx-rate' => $host['tx-rate'] ?? '-',
-                    'bytes-in' => $host['bytes-in'] ?? '0',
-                    'bytes-out' => $host['bytes-out'] ?? '0',
+                    'uptime' => $activeUser['uptime'] ?? '-',
+                    'rx-rate' => $host['rx-rate'] ?? ($activeUser['rx-rate'] ?? '-'),
+                    'tx-rate' => $host['tx-rate'] ?? ($activeUser['tx-rate'] ?? '-'),
+                    'bytes-in' => $host['bytes-in'] ?? ($activeUser['bytes-in'] ?? '0'),
+                    'bytes-out' => $host['bytes-out'] ?? ($activeUser['bytes-out'] ?? '0'),
                     'queue-in' => $queueUploadBytes,
                     'queue-out' => $queueDownloadBytes,
                     'comment' => $host['comment'] ?? ($binding['comment'] ?? '-'),
+                ];
+            }
+
+            foreach ($bindings as $binding) {
+                $mac = strtolower($binding['mac-address'] ?? '');
+                $activeUser = $mac !== '' ? ($activeMap[$mac] ?? null) : null;
+                $host = $mac !== '' ? ($hostsMap[$mac] ?? null) : null;
+
+                $ipBindings[] = [
+                    '.id' => $binding['.id'] ?? null,
+                    'mac' => $binding['mac-address'] ?? '-',
+                    'address' => $binding['address'] ?? '-',
+                    'to_address' => $binding['to-address'] ?? '-',
+                    'type' => $binding['type'] ?? '-',
+                    'server' => $binding['server'] ?? '-',
+                    'disabled' => ($binding['disabled'] ?? 'false') === 'true',
+                    'online' => $activeUser !== null || $host !== null,
+                    'authenticated' => $activeUser !== null,
+                    'host_seen' => $host !== null,
+                    'comment' => $binding['comment'] ?? '-',
                 ];
             }
         } catch (\Exception $e) {
             $error = 'Failed to connect to MikroTik router: '.$e->getMessage();
         }
 
-        return view('admin.active_sessions', compact('activeSessions', 'error'));
+        $systemUsers = DB::table('hotspot_transactions')
+            ->where('status', 'SUCCESS')
+            ->orderByRaw('expires_at IS NULL')
+            ->orderBy('expires_at', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->limit(100)
+            ->get()
+            ->map(function ($transaction) use ($activeMap, $hostsMap, $bindingsMap) {
+                $mac = strtolower($transaction->mac_address ?? '');
+                $expiresAt = $transaction->expires_at ? Carbon::parse($transaction->expires_at) : null;
+                $isPackageActive = $expiresAt !== null && $expiresAt->isFuture();
+
+                return [
+                    'transaction_id' => $transaction->transaction_id,
+                    'phone_number' => $transaction->phone_number,
+                    'mac' => $transaction->mac_address,
+                    'amount' => $transaction->amount,
+                    'duration_minutes' => $transaction->duration_minutes,
+                    'speed_limit' => $transaction->speed_limit ?? '-',
+                    'expires_at' => $transaction->expires_at,
+                    'package_active' => $isPackageActive,
+                    'router_active' => $mac !== '' && isset($activeMap[$mac]),
+                    'host_seen' => $mac !== '' && isset($hostsMap[$mac]),
+                    'has_binding' => $mac !== '' && isset($bindingsMap[$mac]),
+                    'created_at' => $transaction->created_at,
+                ];
+            })
+            ->all();
+
+        return view('admin.active_sessions', compact('activeSessions', 'hostsList', 'ipBindings', 'systemUsers', 'error'));
+    }
+
+    private function splitRouterCounter(?string $counter): array
+    {
+        if (empty($counter)) {
+            return [0, 0];
+        }
+
+        $parts = explode('/', $counter);
+        if (count($parts) !== 2) {
+            return [0, 0];
+        }
+
+        return [floatval($parts[0]), floatval($parts[1])];
     }
 
     public function kickActiveSession($id)

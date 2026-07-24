@@ -96,6 +96,33 @@ class AdminFeaturesSuiteTest extends TestCase
 
     public function test_live_active_sessions_list()
     {
+        DB::table('hotspot_transactions')->insert([
+            [
+                'transaction_id' => 'TXN_ROUTER_ACTIVE_USER',
+                'mac_address' => 'AA:BB:CC:DD:EE:11',
+                'phone_number' => '255700000011',
+                'amount' => 1000,
+                'speed_limit' => '5M/5M',
+                'status' => 'SUCCESS',
+                'duration_minutes' => 60,
+                'expires_at' => Carbon::now()->addMinutes(45),
+                'created_at' => Carbon::now(),
+                'updated_at' => Carbon::now(),
+            ],
+            [
+                'transaction_id' => 'TXN_PAID_NOT_ACTIVE_USER',
+                'mac_address' => 'AA:BB:CC:DD:EE:44',
+                'phone_number' => '255700000044',
+                'amount' => 500,
+                'speed_limit' => '3M/3M',
+                'status' => 'SUCCESS',
+                'duration_minutes' => 30,
+                'expires_at' => Carbon::now()->addMinutes(20),
+                'created_at' => Carbon::now(),
+                'updated_at' => Carbon::now(),
+            ],
+        ]);
+
         $this->app->bind(RouterClient::class, function () {
             $mock = \Mockery::mock(RouterClient::class);
 
@@ -135,8 +162,19 @@ class AdminFeaturesSuiteTest extends TestCase
             $mock->shouldReceive('query')->with('/ip/hotspot/ip-binding/print')->once()->andReturnSelf();
             $mock->shouldReceive('read')->once()->andReturn([
                 [
+                    '.id' => '*binding1',
                     'mac-address' => 'AA:BB:CC:DD:EE:11',
+                    'address' => '192.168.88.254',
+                    'type' => 'regular',
                     'comment' => 'Test active session comment',
+                ],
+                [
+                    '.id' => '*binding2',
+                    'mac-address' => 'AA:BB:CC:DD:EE:33',
+                    'address' => '192.168.88.90',
+                    'type' => 'bypassed',
+                    'server' => 'hotspot1',
+                    'comment' => 'Offline saved binding',
                 ],
             ]);
 
@@ -155,10 +193,16 @@ class AdminFeaturesSuiteTest extends TestCase
             ->get(route('admin.active_sessions'));
 
         $response->assertStatus(200);
+        $response->assertSee('Router Sessions & Bindings', false);
+        $response->assertSee('Active Sessions');
+        $response->assertSee('Hosts');
+        $response->assertSee('IP Bindings');
+        $response->assertSee('System Users');
         $response->assertSee('AA:BB:CC:DD:EE:11');
         $response->assertSee('192.168.88.254');
         $response->assertSee('Authenticated');
         $response->assertSee('Host Seen');
+        $response->assertSee('Has Binding');
         $response->assertSee('54kbps / 128kbps');
         $response->assertSee('00:20:00');
         $response->assertSee('500 KB');
@@ -169,6 +213,15 @@ class AdminFeaturesSuiteTest extends TestCase
         $response->assertSee('AA:BB:CC:DD:EE:22');
         $response->assertSee('192.168.88.88');
         $response->assertSee('Host Only');
+        $response->assertSee('AA:BB:CC:DD:EE:33');
+        $response->assertSee('Offline saved binding');
+        $response->assertSee('Not Connected');
+        $response->assertSee('TXN_ROUTER_ACTIVE_USER');
+        $response->assertSee('TXN_PAID_NOT_ACTIVE_USER');
+        $response->assertSee('255700000044');
+        $response->assertSee('Package Active');
+        $response->assertSee('Router Active');
+        $response->assertSee('Paid But Not Active');
     }
 
     public function test_kick_active_session()
