@@ -544,6 +544,10 @@ class AdminFeaturesSuiteTest extends TestCase
         $descending->assertSeeInOrder(['AA:AA:AA:AA:AA:01', 'BB:BB:BB:BB:BB:02']);
         $descending->assertSee('Sort visits ascending');
         $descending->assertSee('Sort visits descending');
+        $descending->assertSee('id="package-analytics-table"', false);
+        $descending->assertSee('id="visit-analytics-table"', false);
+        $descending->assertSee('data-analytics-sort="visit"', false);
+        $descending->assertSee('loadSortedAnalytics', false);
 
         $ascending = $this->withSession(['admin_logged_in' => true])->get(route('admin.analytics', [
             'visit_sort' => 'visit_count',

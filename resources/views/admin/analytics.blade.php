@@ -101,7 +101,7 @@
     <div class="mb-2 flex justify-between items-center">
         <h3 class="text-sm font-bold text-gray-700 uppercase tracking-wide">Package Popularity & Revenue Breakdown</h3>
     </div>
-    <div class="bg-white border border-gray-300 shadow-sm rounded-sm overflow-hidden">
+    <div id="package-analytics-table" class="bg-white border border-gray-300 shadow-sm rounded-sm overflow-hidden transition-opacity">
         <table class="w-full text-sm text-left whitespace-nowrap">
             <thead class="table-header text-xs uppercase font-semibold">
                 <tr>
@@ -139,7 +139,7 @@
     </div>
 </div>
 
-<div class="bg-white border border-gray-300 shadow-sm rounded-sm overflow-hidden">
+<div id="visit-analytics-table" class="bg-white border border-gray-300 shadow-sm rounded-sm overflow-hidden transition-opacity">
     <table class="w-full text-sm text-left whitespace-nowrap">
         <thead class="table-header text-xs uppercase font-semibold">
             <tr>
@@ -215,6 +215,87 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
     document.addEventListener("DOMContentLoaded", function() {
+        const analyticsTableSelectors = {
+            package: '#package-analytics-table',
+            visit: '#visit-analytics-table'
+        };
+
+        async function loadSortedAnalytics(url, scopes, updateHistory) {
+            const tables = scopes
+                .map(scope => document.querySelector(analyticsTableSelectors[scope]))
+                .filter(Boolean);
+
+            tables.forEach(table => {
+                table.dataset.loading = 'true';
+                table.setAttribute('aria-busy', 'true');
+                table.classList.add('opacity-50', 'pointer-events-none');
+            });
+
+            try {
+                const response = await fetch(url, {
+                    headers: {
+                        'Accept': 'text/html',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Analytics sorting failed with status ${response.status}`);
+                }
+
+                const page = new DOMParser().parseFromString(await response.text(), 'text/html');
+
+                scopes.forEach(scope => {
+                    const selector = analyticsTableSelectors[scope];
+                    const currentTable = document.querySelector(selector);
+                    const sortedTable = page.querySelector(selector);
+
+                    if (!currentTable || !sortedTable) {
+                        throw new Error(`Sorted analytics table ${scope} was not returned`);
+                    }
+
+                    currentTable.replaceWith(sortedTable);
+                });
+
+                if (updateHistory) {
+                    window.history.pushState({}, '', url);
+                }
+            } catch (error) {
+                if (updateHistory) {
+                    window.location.assign(url);
+                    return;
+                }
+
+                console.error(error);
+                tables.forEach(table => {
+                    table.removeAttribute('aria-busy');
+                    table.classList.remove('opacity-50', 'pointer-events-none');
+                });
+            }
+        }
+
+        document.addEventListener('click', function(event) {
+            const sortLink = event.target.closest('a[data-analytics-sort]');
+
+            if (!sortLink || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
+                return;
+            }
+
+            event.preventDefault();
+            const scope = sortLink.dataset.analyticsSort;
+            const table = document.querySelector(analyticsTableSelectors[scope]);
+
+            if (!table || table.dataset.loading === 'true') {
+                return;
+            }
+
+            loadSortedAnalytics(sortLink.href, [scope], true);
+        });
+
+        window.addEventListener('popstate', function() {
+            loadSortedAnalytics(window.location.href, Object.keys(analyticsTableSelectors), false);
+        });
+
         // 7-Day Conversion Trend Chart
         const ctxConv = document.getElementById('conversionChart').getContext('2d');
         new Chart(ctxConv, {
