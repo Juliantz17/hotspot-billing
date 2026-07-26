@@ -170,6 +170,79 @@ class AdminDashboardFilterTest extends TestCase
         $response->assertSee('Kifurushi cha Saa 1');
     }
 
+    public function test_reconnect_button_is_hidden_when_pending_users_package_has_expired()
+    {
+        $now = Carbon::now();
+        $phone = '255700000009';
+
+        DB::table('hotspot_transactions')->insert([
+            'transaction_id' => 'EXPIRED_PACKAGE_FOR_PENDING',
+            'mac_address' => '55:55:55:55:55:55',
+            'phone_number' => $phone,
+            'amount' => 1000,
+            'duration_minutes' => 60,
+            'status' => 'SUCCESS',
+            'expires_at' => $now->copy()->subHour(),
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $pendingId = DB::table('hotspot_transactions')->insertGetId([
+            'transaction_id' => 'PENDING_AFTER_EXPIRY',
+            'mac_address' => '66:66:66:66:66:66',
+            'phone_number' => $phone,
+            'amount' => 1000,
+            'duration_minutes' => 60,
+            'status' => 'PENDING',
+            'expires_at' => null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $response = $this->withSession(['admin_logged_in' => true])
+            ->get(route('admin.dashboard', ['status' => 'pending']));
+
+        $response->assertStatus(200);
+        $response->assertSee('PENDING_AFTER_EXPIRY');
+        $response->assertDontSee(route('admin.reconnect', $pendingId), false);
+    }
+
+    public function test_reconnect_button_is_shown_when_pending_users_package_is_active()
+    {
+        $now = Carbon::now();
+        $phone = '255700000010';
+
+        DB::table('hotspot_transactions')->insert([
+            'transaction_id' => 'ACTIVE_PACKAGE_FOR_PENDING',
+            'mac_address' => '77:77:77:77:77:77',
+            'phone_number' => $phone,
+            'amount' => 1000,
+            'duration_minutes' => 60,
+            'status' => 'SUCCESS',
+            'expires_at' => $now->copy()->addHour(),
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $pendingId = DB::table('hotspot_transactions')->insertGetId([
+            'transaction_id' => 'PENDING_WITH_ACTIVE_PACKAGE',
+            'mac_address' => '88:88:88:88:88:88',
+            'phone_number' => $phone,
+            'amount' => 1000,
+            'duration_minutes' => 60,
+            'status' => 'PENDING',
+            'expires_at' => null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $response = $this->withSession(['admin_logged_in' => true])
+            ->get(route('admin.dashboard', ['status' => 'pending']));
+
+        $response->assertStatus(200);
+        $response->assertSee(route('admin.reconnect', $pendingId), false);
+    }
+
     public function test_live_metrics_endpoint_returns_json()
     {
         $response = $this->withSession(['admin_logged_in' => true])

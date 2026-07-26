@@ -67,11 +67,19 @@ class AdminController extends Controller
 
         // Fetch all packages for package name matching
         $allPackages = DB::table('packages')->get();
+        $activePackagePhones = DB::table('hotspot_transactions')
+            ->where('status', 'SUCCESS')
+            ->where('expires_at', '>', Carbon::now())
+            ->pluck('phone_number')
+            ->flip();
 
         foreach ($transactions as $txn) {
             $matchingPkg = $allPackages->first(function ($pkg) use ($txn) {
                 return $pkg->duration_minutes == $txn->duration_minutes && $pkg->price == $txn->amount;
             });
+
+            $txn->can_reconnect = $txn->status === 'PENDING'
+                && $activePackagePhones->has($txn->phone_number);
 
             if ($matchingPkg) {
                 $txn->package_name = $matchingPkg->name;
