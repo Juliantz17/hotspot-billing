@@ -207,6 +207,42 @@ class AdminDashboardFilterTest extends TestCase
         $response->assertDontSee(route('admin.reconnect', $pendingId), false);
     }
 
+    public function test_kick_button_is_only_shown_for_active_transactions()
+    {
+        $now = Carbon::now();
+
+        $activeId = DB::table('hotspot_transactions')->insertGetId([
+            'transaction_id' => 'ACTIVE_KICK_TEST',
+            'mac_address' => '99:99:99:99:99:99',
+            'phone_number' => '255700000011',
+            'amount' => 1000,
+            'duration_minutes' => 60,
+            'status' => 'SUCCESS',
+            'expires_at' => $now->copy()->addHour(),
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $expiredId = DB::table('hotspot_transactions')->insertGetId([
+            'transaction_id' => 'EXPIRED_KICK_TEST',
+            'mac_address' => 'AA:AA:AA:AA:AA:AA',
+            'phone_number' => '255700000012',
+            'amount' => 1000,
+            'duration_minutes' => 60,
+            'status' => 'SUCCESS',
+            'expires_at' => $now->copy()->subHour(),
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $response = $this->withSession(['admin_logged_in' => true])
+            ->get(route('admin.dashboard'));
+
+        $response->assertStatus(200);
+        $response->assertSee(route('admin.kick', $activeId), false);
+        $response->assertDontSee(route('admin.kick', $expiredId), false);
+    }
+
     public function test_reconnect_button_is_shown_when_pending_users_package_is_active()
     {
         $now = Carbon::now();

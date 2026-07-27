@@ -163,10 +163,12 @@
                                 <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2 py-0.5 ml-1 rounded-sm border border-blue-700 shadow-sm">+ Hrs</button>
                             </form>
 
-                            <form method="POST" action="{{ route('admin.kick', $txn->id) }}" onsubmit="return confirm('Disconnect this MAC from router instantly?');" class="m-0">
-                                @csrf
-                                <button type="submit" class="bg-red-600 hover:bg-red-700 text-white text-xs px-2 py-0.5 rounded-sm border border-red-700 shadow-sm">Kick</button>
-                            </form>
+                            @if(!is_null($txn->expires_at) && \Carbon\Carbon::parse($txn->expires_at)->isFuture())
+                                <form method="POST" action="{{ route('admin.kick', $txn->id) }}" onsubmit="return confirm('Disconnect this MAC from router instantly?');" class="m-0">
+                                    @csrf
+                                    <button type="submit" class="bg-red-600 hover:bg-red-700 text-white text-xs px-2 py-0.5 rounded-sm border border-red-700 shadow-sm">Kick</button>
+                                </form>
+                            @endif
                         @else
                             @if($txn->status === 'PENDING' && $txn->can_reconnect)
                                 <form method="POST" action="{{ route('admin.reconnect', $txn->id) }}" onsubmit="return confirm('Reconnect this user by transferring their active package to this new MAC address?');" class="m-0 mr-1">
