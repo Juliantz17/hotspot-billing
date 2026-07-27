@@ -563,6 +563,8 @@ class AdminController extends Controller
     public function earnings(Request $request)
     {
         $filter = $request->query('filter', 'today');
+        $groupBy = $request->query('group_by', 'phone');
+        $groupBy = in_array($groupBy, ['phone', 'mac'], true) ? $groupBy : 'phone';
 
         $query = DB::table('hotspot_transactions')->where('status', 'SUCCESS');
 
@@ -586,9 +588,31 @@ class AdminController extends Controller
         $transactionCount = clone $query;
         $transactionCount = $transactionCount->count();
 
-        $transactions = $query->orderBy('created_at', 'desc')->paginate(10)->appends(['filter' => $filter]);
+        $groupColumn = $groupBy === 'mac' ? 'mac_address' : 'phone_number';
+        $customerEarnings = (clone $query)
+            ->select(
+                $groupColumn.' as customer_identifier',
+                DB::raw('COUNT(*) as transaction_count'),
+                DB::raw('SUM(amount) as total_earnings'),
+                DB::raw('MAX(created_at) as last_payment_at')
+            )
+            ->groupBy($groupColumn)
+            ->orderByDesc('total_earnings')
+            ->paginate(10, ['*'], 'customer_page')
+            ->appends(['filter' => $filter, 'group_by' => $groupBy]);
 
-        return view('admin.earnings', compact('totalEarnings', 'transactionCount', 'transactions', 'filter'));
+        $transactions = $query->orderBy('created_at', 'desc')
+            ->paginate(10, ['*'], 'transaction_page')
+            ->appends(['filter' => $filter, 'group_by' => $groupBy]);
+
+        return view('admin.earnings', compact(
+            'totalEarnings',
+            'transactionCount',
+            'transactions',
+            'customerEarnings',
+            'filter',
+            'groupBy'
+        ));
     }
 
     public function extend(Request $request, $id)
