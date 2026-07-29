@@ -13,6 +13,8 @@ class CleanExpiredHotspotUsersTest extends TestCase
 
     public function test_expired_cleanup_removes_router_access_and_marks_session_processed()
     {
+        $expiresAt = now()->subMinute();
+
         DB::table('hotspot_transactions')->insert([
             'transaction_id' => 'TXN_EXPIRED_CLEANUP',
             'mac_address' => 'AA:BB:CC:DD:EE:FF',
@@ -22,7 +24,7 @@ class CleanExpiredHotspotUsersTest extends TestCase
             'speed_limit' => '3M/3M',
             'duration_minutes' => 60,
             'status' => 'SUCCESS',
-            'expires_at' => now()->subMinute(),
+            'expires_at' => $expiresAt,
             'created_at' => now()->subHour(),
             'updated_at' => now()->subHour(),
         ]);
@@ -38,7 +40,18 @@ class CleanExpiredHotspotUsersTest extends TestCase
 
         $this->assertDatabaseHas('hotspot_transactions', [
             'transaction_id' => 'TXN_EXPIRED_CLEANUP',
-            'expires_at' => null,
         ]);
+
+        $transaction = DB::table('hotspot_transactions')
+            ->where('transaction_id', 'TXN_EXPIRED_CLEANUP')
+            ->first();
+
+        $this->assertSame(
+            $expiresAt->format('Y-m-d H:i:s'),
+            $transaction->expires_at,
+        );
+        $this->assertNotNull($transaction->router_access_removed_at);
+
+        $this->artisan('hotspot:clean-expired')->assertExitCode(0);
     }
 }

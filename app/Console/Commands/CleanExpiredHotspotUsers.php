@@ -19,6 +19,7 @@ class CleanExpiredHotspotUsers extends Command
         $expiredSessions = DB::table('hotspot_transactions')
             ->where('status', 'SUCCESS')
             ->where('expires_at', '<=', now())
+            ->whereNull('router_access_removed_at')
             ->get();
 
         if ($expiredSessions->isEmpty()) {
@@ -33,10 +34,13 @@ class CleanExpiredHotspotUsers extends Command
 
                 Log::info("Session Limit Exceeded. Device MAC [{$session->mac_address}] fully removed from router.");
 
-                // To prevent SQL Enum errors (status doesn't allow 'EXPIRED'), we just clear the expires_at timestamp to mark it as processed, keeping status=SUCCESS for earnings!
+                // Keep the real expiry date for history and mark only the router cleanup as processed.
                 DB::table('hotspot_transactions')
                     ->where('id', $session->id)
-                    ->update(['expires_at' => null, 'updated_at' => now()]);
+                    ->update([
+                        'router_access_removed_at' => now(),
+                        'updated_at' => now(),
+                    ]);
             }
 
         } catch (\Exception $e) {
