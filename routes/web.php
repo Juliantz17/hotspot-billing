@@ -34,6 +34,7 @@ Route::middleware(['admin'])->prefix('admin')->group(function () {
     // Active Sessions & Router status
     Route::get('/active-sessions', [AdminController::class, 'activeSessions'])->name('admin.active_sessions');
     Route::post('/active-sessions/{id}/kick', [AdminController::class, 'kickActiveSession'])->name('admin.active_sessions.kick');
+    Route::post('/active-sessions/import-fup', [AdminController::class, 'importRouterUsageForFup'])->name('admin.active_sessions.import_fup');
     Route::get('/router', [AdminController::class, 'routerPanel'])->name('admin.router');
     Route::get('/queues', [AdminController::class, 'routerQueues'])->name('admin.queues');
     Route::get('/logs', [AdminController::class, 'routerLogs'])->name('admin.logs');

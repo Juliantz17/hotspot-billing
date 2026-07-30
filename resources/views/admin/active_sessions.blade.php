@@ -245,7 +245,8 @@
                     <th class="px-4 py-2 border-r border-gray-600">DHCP Status</th>
                     <th class="px-4 py-2 border-r border-gray-600">Router Seen</th>
                     <th class="px-4 py-2 border-r border-gray-600">Last Seen / Expires</th>
-                    <th class="px-4 py-2">Comment</th>
+                    <th class="px-4 py-2 border-r border-gray-600">Comment</th>
+                    <th class="px-4 py-2 text-right">Private Action</th>
                 </tr>
             </thead>
             <tbody class="text-gray-700">
@@ -389,10 +390,22 @@
                         @endif
                     </td>
                     <td class="px-4 py-2 text-xs text-gray-500 italic max-w-sm truncate" title="{{ $user['comment'] }}">{{ $user['comment'] }}</td>
+                    <td class="px-4 py-2 text-right">
+                        @if($user['mac'] !== '-')
+                            <form method="POST" action="{{ route('admin.active_sessions.import_fup') }}" onsubmit="return confirm('Import this router user’s existing usage and immediately apply the current private policy?');">
+                                @csrf
+                                <input type="hidden" name="router_user" value="{{ $user['name'] }}">
+                                <input type="hidden" name="mac" value="{{ $user['mac'] }}">
+                                <button type="submit" class="bg-red-600 hover:bg-red-700 text-white text-xs px-2 py-1 rounded-sm border border-red-700">Import Usage &amp; Apply FUP</button>
+                            </form>
+                        @else
+                            -
+                        @endif
+                    </td>
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="7" class="px-4 py-6 text-center text-gray-500 text-sm">No MikroTik hotspot users found.</td>
+                    <td colspan="8" class="px-4 py-6 text-center text-gray-500 text-sm">No MikroTik hotspot users found.</td>
                 </tr>
                 @endforelse
             </tbody>

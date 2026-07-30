@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Events\WifiPaymentSuccess;
+use App\Services\FupEnforcementService;
 use App\Services\MikrotikService;
 use App\Services\RouterProvisioningService;
 use Carbon\Carbon;
@@ -1048,6 +1049,85 @@ class AdminController extends Controller
             return back()->with('success', 'Host connection removed successfully.');
         } catch (\Exception $e) {
             return back()->withErrors(['error' => 'Failed to remove host connection: '.$e->getMessage()]);
+        }
+    }
+
+    public function importRouterUsageForFup(Request $request, FupEnforcementService $fup)
+    {
+        $validated = $request->validate([
+            'router_user' => ['required', 'string', 'max:255'],
+            'mac' => ['required', 'regex:/^[0-9A-Fa-f]{2}([:-][0-9A-Fa-f]{2}){5}$/'],
+        ]);
+
+        $mac = $this->normalizeAdminMac($validated['mac']);
+
+        try {
+            $rows = MikrotikService::getClient()
+                ->query(['/ip/hotspot/user/print', '?name='.$validated['router_user']])
+                ->read();
+            $routerUser = $rows[0] ?? null;
+
+            if ($routerUser === null || $this->normalizeAdminMac($routerUser['mac-address'] ?? '') !== $mac) {
+                return back()->withErrors(['error' => 'The MikroTik user no longer matches this device. Refresh and try again.']);
+            }
+
+            $transaction = DB::table('hotspot_transactions')
+                ->where('status', 'SUCCESS')
+                ->where('expires_at', '>', now())
+                ->orderByDesc('created_at')
+                ->get()
+                ->first(fn ($row) => $this->normalizeAdminMac($row->mac_address) === $mac);
+
+            if ($transaction === null) {
+                return back()->withErrors(['error' => 'No active paid transaction was found for '.$mac.'.']);
+            }
+
+            $packageId = $transaction->package_id;
+            if ($packageId === null) {
+                $matches = DB::table('packages')
+                    ->where('price', $transaction->amount)
+                    ->where('duration_minutes', $transaction->duration_minutes)
+                    ->where('fup_enabled', true)
+                    ->where(function ($query) use ($transaction) {
+                        $transaction->speed_limit === null
+                            ? $query->whereNull('speed_limit')
+                            : $query->where('speed_limit', $transaction->speed_limit);
+                    })
+                    ->pluck('id');
+
+                if ($matches->count() !== 1) {
+                    return back()->withErrors([
+                        'error' => 'Could not identify exactly one FUP-enabled package for this older transaction.',
+                    ]);
+                }
+
+                $packageId = $matches->first();
+            }
+
+            $package = DB::table('packages')->where('id', $packageId)->first();
+            if ($package === null || ! $package->fup_enabled) {
+                return back()->withErrors(['error' => 'Enable FUP on this transaction’s package first.']);
+            }
+
+            $routerUsage = max(0, (int) ($routerUser['bytes-in'] ?? 0))
+                + max(0, (int) ($routerUser['bytes-out'] ?? 0));
+            $usage = max((int) $transaction->usage_bytes, $routerUsage);
+
+            DB::table('hotspot_transactions')->where('id', $transaction->id)->update([
+                'package_id' => $packageId,
+                'usage_bytes' => $usage,
+                'router_counter_bytes' => null,
+                'usage_checked_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            $fup->enforce();
+
+            return back()->with('success', 'Imported '.number_format($usage / 1073741824, 2).' GB and applied the current private policy to '.$mac.'.');
+        } catch (\Throwable $e) {
+            Log::error('Could not import MikroTik usage for FUP.', ['mac' => $mac, 'error' => $e->getMessage()]);
+
+            return back()->withErrors(['error' => 'Could not import router usage: '.$e->getMessage()]);
         }
     }
 
