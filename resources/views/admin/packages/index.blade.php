@@ -6,7 +6,7 @@
 
 <div class="mb-6 bg-white border border-gray-300 shadow-sm p-4 rounded-sm">
     <h3 class="text-lg font-semibold mb-3">Create New Package</h3>
-    <form method="POST" action="{{ route('admin.packages.store') }}" class="flex items-end space-x-4">
+    <form method="POST" action="{{ route('admin.packages.store') }}" class="flex items-end space-x-4 flex-wrap gap-y-3">
         @csrf
         <div class="flex-1">
             <label class="block text-xs font-medium text-gray-700 mb-1">Package Name</label>
@@ -15,6 +15,18 @@
         <div class="w-32">
             <label class="block text-xs font-medium text-gray-700 mb-1">Duration (Mins)</label>
             <input type="number" name="duration_minutes" class="w-full border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:border-gray-500 rounded-sm" placeholder="120" required>
+        </div>
+        <div class="w-28">
+            <label class="block text-xs font-medium text-gray-700 mb-1">Private FUP (GB)</label>
+            <input type="number" step="0.01" min="0.01" name="fup_threshold_gb" class="w-full border border-gray-300 px-2 py-1 text-sm rounded-sm" placeholder="5">
+        </div>
+        <div class="w-28">
+            <label class="block text-xs font-medium text-gray-700 mb-1">FUP Speed</label>
+            <input type="text" name="fup_speed_limit" class="w-full border border-gray-300 px-2 py-1 text-sm rounded-sm" placeholder="64K/64K">
+        </div>
+        <div class="w-24 flex items-center mb-1.5">
+            <input type="checkbox" name="fup_enabled" value="1" class="mr-2">
+            <label class="text-xs font-medium text-gray-700">Use FUP</label>
         </div>
         <div class="w-32">
             <label class="block text-xs font-medium text-gray-700 mb-1">Price (TZS)</label>
@@ -43,6 +55,7 @@
                 <th class="px-4 py-2 border-r border-gray-600">Duration</th>
                 <th class="px-4 py-2 border-r border-gray-600">Price (TZS)</th>
                 <th class="px-4 py-2 border-r border-gray-600">Speed Limit</th>
+                <th class="px-4 py-2 border-r border-gray-600">Private FUP</th>
                 <th class="px-4 py-2 border-r border-gray-600 text-center">Status</th>
                 <th class="px-4 py-2 text-right">Actions</th>
             </tr>
@@ -66,6 +79,13 @@
                     <td class="px-4 py-2">
                         <input type="text" name="speed_limit" value="{{ $pkg->speed_limit }}" placeholder="5M/5M" class="border border-gray-300 px-1 py-0.5 text-sm w-20 rounded-sm">
                     </td>
+                    <td class="px-4 py-2">
+                        <div class="flex items-center space-x-1">
+                            <input type="checkbox" name="fup_enabled" value="1" {{ $pkg->fup_enabled ? 'checked' : '' }} title="Enable private FUP">
+                            <input type="number" step="0.01" min="0.01" name="fup_threshold_gb" value="{{ $pkg->fup_threshold_bytes ? round($pkg->fup_threshold_bytes / 1073741824, 2) : '' }}" placeholder="GB" class="border border-gray-300 px-1 py-0.5 text-sm w-16 rounded-sm">
+                            <input type="text" name="fup_speed_limit" value="{{ $pkg->fup_speed_limit }}" placeholder="64K" class="border border-gray-300 px-1 py-0.5 text-sm w-20 rounded-sm">
+                        </div>
+                    </td>
                     <td class="px-4 py-2 text-center">
                         <input type="checkbox" name="is_active" value="1" {{ $pkg->is_active ? 'checked' : '' }}>
                     </td>
@@ -81,7 +101,7 @@
             </tr>
             @empty
             <tr>
-                <td colspan="6" class="px-4 py-4 text-center text-gray-500 text-sm">No packages configured.</td>
+                <td colspan="8" class="px-4 py-4 text-center text-gray-500 text-sm">No packages configured.</td>
             </tr>
             @endforelse
         </tbody>

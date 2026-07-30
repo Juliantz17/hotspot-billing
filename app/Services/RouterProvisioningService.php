@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Package;
 use Illuminate\Support\Facades\Log;
 use RouterOS\Client as RouterClient;
 
@@ -24,6 +25,9 @@ class RouterProvisioningService
         $mac = $this->normalizeMacAddress($originalMac);
         $ip = $session->ip_address ?? null;
         $speedLimit = $this->normalizeSpeedLimit($session->speed_limit ?? null);
+        $tracksUsage = ! empty($session->package_id)
+            && Package::query()->whereKey($session->package_id)->where('fup_enabled', true)->exists();
+        $queueSpeedLimit = $speedLimit ?? ($tracksUsage ? '0/0' : null);
         $comment = $commentPrefix.' '.$session->transaction_id;
         $credentials = $this->credentialsForMac($mac);
 
@@ -74,7 +78,38 @@ class RouterProvisioningService
         }
 
         $this->autoLogin($mac, $ip, $credentials);
-        $this->syncSimpleQueue($mac, $ip, $speedLimit, $comment);
+        $this->syncSimpleQueue($mac, $ip, $queueSpeedLimit, $comment);
+    }
+
+    public function fupQueueSnapshots(): array
+    {
+        $snapshots = [];
+        $queues = $this->client()->query('/queue/simple/print')->read();
+
+        foreach ($queues as $queue) {
+            $name = $queue['name'] ?? '';
+            if (! str_starts_with($name, 'RateLimit_')) {
+                continue;
+            }
+
+            $mac = $this->normalizeMacAddress(substr($name, 10));
+            [$upload, $download] = array_pad(explode('/', (string) ($queue['bytes'] ?? '0/0'), 2), 2, 0);
+
+            $snapshots[strtolower($mac)] = [
+                'counter_bytes' => max(0, (int) $upload) + max(0, (int) $download),
+                'target' => $queue['target'] ?? null,
+                'max_limit' => $queue['max-limit'] ?? null,
+            ];
+        }
+
+        return $snapshots;
+    }
+
+    public function setManagedQueueRate(string $mac, ?string $ip, ?string $speedLimit, string $comment): void
+    {
+        $mac = $this->normalizeMacAddress($mac);
+        $ip = $ip ? preg_replace('/\/\d+$/', '', $ip) : null;
+        $this->syncSimpleQueue($mac, $ip, $this->normalizeSpeedLimit($speedLimit) ?? '0/0', $comment);
     }
 
     public function removeMacAccess(string $mac, bool $includeCookies = false): void

@@ -799,6 +799,26 @@ class AdminController extends Controller
         $hostsMap = [];
         $bindingsMap = [];
         $error = null;
+        $paidSessionsMap = [];
+
+        DB::table('hotspot_transactions as transactions')
+            ->leftJoin('packages', 'packages.id', '=', 'transactions.package_id')
+            ->where('transactions.status', 'SUCCESS')
+            ->where('transactions.expires_at', '>', now())
+            ->orderByDesc('transactions.created_at')
+            ->select([
+                'transactions.mac_address',
+                'transactions.amount',
+                'transactions.usage_bytes',
+                'transactions.fup_applied_at',
+                'packages.fup_enabled',
+                'packages.fup_threshold_bytes',
+            ])
+            ->get()
+            ->each(function ($transaction) use (&$paidSessionsMap) {
+                $key = strtolower($this->normalizeAdminMac($transaction->mac_address));
+                $paidSessionsMap[$key] ??= $transaction;
+            });
 
         try {
             $routerClient = MikrotikService::getClient();
@@ -843,6 +863,7 @@ class AdminController extends Controller
                 $host = $hostsMap[$mac] ?? null;
                 $binding = $bindingsMap[$mac] ?? null;
                 $queue = $queuesMap[$mac] ?? null;
+                $paidSession = $paidSessionsMap[$mac] ?? null;
                 [$queueUploadBytes, $queueDownloadBytes] = $this->splitRouterCounter($queue['bytes'] ?? null);
 
                 $activeSessions[] = [
@@ -863,6 +884,11 @@ class AdminController extends Controller
                     'queue-in' => $queueUploadBytes,
                     'queue-out' => $queueDownloadBytes,
                     'comment' => $activeUser['comment'] ?? ($host['comment'] ?? ($binding['comment'] ?? '-')),
+                    'paid_amount' => $paidSession->amount ?? null,
+                    'fup_usage' => $paidSession->usage_bytes ?? null,
+                    'fup_threshold' => $paidSession->fup_threshold_bytes ?? null,
+                    'fup_enabled' => (bool) ($paidSession->fup_enabled ?? false),
+                    'fup_applied' => ! empty($paidSession?->fup_applied_at),
                 ];
             }
 
@@ -990,6 +1016,13 @@ class AdminController extends Controller
         }
 
         return '';
+    }
+
+    private function normalizeAdminMac(string $mac): string
+    {
+        $compact = strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $mac));
+
+        return strlen($compact) === 12 ? implode(':', str_split($compact, 2)) : strtoupper($mac);
     }
 
     private function splitRouterCounter(?string $counter): array

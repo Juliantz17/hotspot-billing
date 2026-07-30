@@ -247,6 +247,7 @@ class HotspotController extends Controller
         // 1. Log the transaction as PENDING locally
         DB::table('hotspot_transactions')->insert([
             'transaction_id' => $transactionId,
+            'package_id' => $package->id,
             'mac_address' => $request->mac,
             'ip_address' => $request->ip,
             'phone_number' => $formattedPhone,

@@ -23,6 +23,9 @@ class PackageController extends Controller
             'price' => 'required|integer|min:0',
             'is_active' => 'boolean',
             'speed_limit' => ['nullable', 'string', 'max:50', 'regex:/^[0-9]+[kKmMgG]?(\/[0-9]+[kKmMgG]?)?$/'],
+            'fup_enabled' => 'boolean',
+            'fup_threshold_gb' => 'nullable|required_if:fup_enabled,1|numeric|min:0.01|max:100000',
+            'fup_speed_limit' => ['nullable', 'required_if:fup_enabled,1', 'string', 'max:50', 'regex:/^[0-9]+[kKmMgG]?(\/[0-9]+[kKmMgG]?)?$/'],
         ]);
 
         Package::create([
@@ -31,6 +34,9 @@ class PackageController extends Controller
             'price' => $request->price,
             'is_active' => $request->has('is_active') ? true : false,
             'speed_limit' => $this->normalizeSpeedLimit($request->speed_limit),
+            'fup_enabled' => $request->boolean('fup_enabled'),
+            'fup_threshold_bytes' => $this->gigabytesToBytes($request->input('fup_threshold_gb')),
+            'fup_speed_limit' => $this->normalizeSpeedLimit($request->fup_speed_limit),
         ]);
 
         return back()->with('success', 'Package created successfully.');
@@ -44,6 +50,9 @@ class PackageController extends Controller
             'price' => 'required|integer|min:0',
             'is_active' => 'boolean',
             'speed_limit' => ['nullable', 'string', 'max:50', 'regex:/^[0-9]+[kKmMgG]?(\/[0-9]+[kKmMgG]?)?$/'],
+            'fup_enabled' => 'boolean',
+            'fup_threshold_gb' => 'nullable|required_if:fup_enabled,1|numeric|min:0.01|max:100000',
+            'fup_speed_limit' => ['nullable', 'required_if:fup_enabled,1', 'string', 'max:50', 'regex:/^[0-9]+[kKmMgG]?(\/[0-9]+[kKmMgG]?)?$/'],
         ]);
 
         $package->update([
@@ -52,6 +61,9 @@ class PackageController extends Controller
             'price' => $request->price,
             'is_active' => $request->has('is_active') ? true : false,
             'speed_limit' => $this->normalizeSpeedLimit($request->speed_limit),
+            'fup_enabled' => $request->boolean('fup_enabled'),
+            'fup_threshold_bytes' => $this->gigabytesToBytes($request->input('fup_threshold_gb')),
+            'fup_speed_limit' => $this->normalizeSpeedLimit($request->fup_speed_limit),
         ]);
 
         return back()->with('success', 'Package updated successfully.');
@@ -77,5 +89,14 @@ class PackageController extends Controller
         }
 
         return $speedLimit;
+    }
+
+    private function gigabytesToBytes(mixed $gigabytes): ?int
+    {
+        if ($gigabytes === null || $gigabytes === '') {
+            return null;
+        }
+
+        return (int) round((float) $gigabytes * 1024 * 1024 * 1024);
     }
 }

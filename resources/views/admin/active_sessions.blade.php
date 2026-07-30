@@ -85,6 +85,7 @@
                     <th class="px-4 py-2 border-r border-gray-600">Uptime / Idle</th>
                     <th class="px-4 py-2 border-r border-gray-600">Active Usage</th>
                     <th class="px-4 py-2 border-r border-gray-600">Queue Cumulative</th>
+                    <th class="px-4 py-2 border-r border-gray-600">Private Policy</th>
                     <th class="px-4 py-2 border-r border-gray-600">Comment</th>
                     <th class="px-4 py-2 text-right">Actions</th>
                 </tr>
@@ -119,6 +120,21 @@
                             -
                         @endif
                     </td>
+                    <td class="px-4 py-2 text-xs">
+                        @if($session['fup_enabled'])
+                            <span class="font-mono">{{ formatBytes($session['fup_usage']) }} / {{ formatBytes($session['fup_threshold']) }}</span><br>
+                            @if($session['fup_applied'])
+                                <span class="inline-flex mt-1 px-2 py-0.5 rounded font-bold bg-red-100 text-red-800 border border-red-300">Throttled</span>
+                            @else
+                                <span class="inline-flex mt-1 px-2 py-0.5 rounded font-bold bg-green-100 text-green-800 border border-green-300">Normal</span>
+                            @endif
+                            @if($session['paid_amount'] !== null)
+                                <span class="block mt-1 text-gray-500">TZS {{ number_format($session['paid_amount']) }}</span>
+                            @endif
+                        @else
+                            -
+                        @endif
+                    </td>
                     <td class="px-4 py-2 text-xs text-gray-500 italic max-w-xs truncate" title="{{ $session['comment'] }}">{{ $session['comment'] }}</td>
                     <td class="px-4 py-2 text-right">
                         @if(!empty($session['host_id']))
@@ -133,7 +149,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="9" class="px-4 py-6 text-center text-gray-500 text-sm">No authenticated active hotspot users found.</td>
+                    <td colspan="10" class="px-4 py-6 text-center text-gray-500 text-sm">No authenticated active hotspot users found.</td>
                 </tr>
                 @endforelse
             </tbody>
