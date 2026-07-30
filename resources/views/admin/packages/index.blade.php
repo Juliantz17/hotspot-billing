@@ -22,7 +22,7 @@
         </div>
         <div class="w-28">
             <label class="block text-xs font-medium text-gray-700 mb-1">FUP Speed</label>
-            <input type="text" name="fup_speed_limit" class="w-full border border-gray-300 px-2 py-1 text-sm rounded-sm" placeholder="64K/64K">
+            <input type="text" name="fup_speed_limit" class="w-full border border-gray-300 px-2 py-1 text-sm rounded-sm" placeholder="Default 64K/64K" title="Reduced speed after the threshold. Blank uses 64K/64K.">
         </div>
         <div class="w-24 flex items-center mb-1.5">
             <input type="checkbox" name="fup_enabled" value="1" class="mr-2">
@@ -34,7 +34,7 @@
         </div>
         <div class="w-32">
             <label class="block text-xs font-medium text-gray-700 mb-1">Speed Limit</label>
-            <input type="text" name="speed_limit" class="w-full border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:border-gray-500 rounded-sm" placeholder="e.g. 5M/5M" title="Leave blank for unlimited, or use Mikrotik format e.g. 5M/5M">
+            <input type="text" name="speed_limit" class="w-full border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:border-gray-500 rounded-sm" placeholder="Blank = Unlimited" title="Leave blank for unlimited before FUP, or use MikroTik format e.g. 5M/5M">
         </div>
         <div class="w-24 flex items-center mb-1.5">
             <input type="checkbox" name="is_active" value="1" checked class="mr-2">
@@ -77,7 +77,7 @@
                         <input type="number" name="price" value="{{ $pkg->price }}" class="border border-gray-300 px-1 py-0.5 text-sm w-24 rounded-sm">
                     </td>
                     <td class="px-4 py-2">
-                        <input type="text" name="speed_limit" value="{{ $pkg->speed_limit }}" placeholder="5M/5M" class="border border-gray-300 px-1 py-0.5 text-sm w-20 rounded-sm">
+                        <input type="text" name="speed_limit" value="{{ $pkg->speed_limit }}" placeholder="Unlimited" title="Blank means unlimited before FUP" class="border border-gray-300 px-1 py-0.5 text-sm w-20 rounded-sm">
                     </td>
                     <td class="px-4 py-2">
                         <div class="flex items-center space-x-1">

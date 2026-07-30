@@ -36,6 +36,30 @@ class FairUsagePolicyTest extends TestCase
         ]);
     }
 
+    public function test_unlimited_package_uses_default_slow_rate_when_fup_speed_is_blank(): void
+    {
+        $response = $this->withSession(['admin_logged_in' => true])
+            ->post(route('admin.packages.store'), [
+                'name' => 'Unlimited before FUP',
+                'duration_minutes' => 1440,
+                'price' => 1000,
+                'is_active' => '1',
+                'speed_limit' => '',
+                'fup_enabled' => '1',
+                'fup_threshold_gb' => '5',
+                'fup_speed_limit' => '',
+            ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('packages', [
+            'name' => 'Unlimited before FUP',
+            'speed_limit' => null,
+            'fup_enabled' => true,
+            'fup_speed_limit' => '64K/64K',
+        ]);
+    }
+
     public function test_usage_crossing_the_current_threshold_applies_the_current_slow_rate(): void
     {
         [$package, $transactionId] = $this->activeTransaction([
