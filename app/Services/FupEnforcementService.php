@@ -62,12 +62,14 @@ class FupEnforcementService
             $ip = $snapshot['target'] ?? $transaction->ip_address;
 
             try {
-                $this->router->setManagedQueueRate(
-                    $transaction->mac_address,
-                    $ip,
-                    $desiredRate,
-                    'Managed Txn '.$transaction->transaction_id
-                );
+                if ($snapshot === null || ! $this->ratesEquivalent($snapshot['max_limit'] ?? null, $desiredRate)) {
+                    $this->router->setManagedQueueRate(
+                        $transaction->mac_address,
+                        $ip,
+                        $desiredRate,
+                        'Managed Txn '.$transaction->transaction_id
+                    );
+                }
 
                 if ($shouldThrottle) {
                     if ($transaction->fup_applied_at === null) {
@@ -102,5 +104,42 @@ class FupEnforcementService
         $compact = strtoupper(preg_replace('/[^a-fA-F0-9]/', '', $mac));
 
         return strlen($compact) === 12 ? implode(':', str_split($compact, 2)) : strtoupper($mac);
+    }
+
+    private function ratesEquivalent(?string $routerRate, ?string $desiredRate): bool
+    {
+        $desiredRate = trim((string) $desiredRate);
+        if ($desiredRate === '') {
+            $desiredRate = '0/0';
+        } elseif (! str_contains($desiredRate, '/')) {
+            $desiredRate .= '/'.$desiredRate;
+        }
+
+        return $this->ratePairInBits($routerRate) === $this->ratePairInBits($desiredRate);
+    }
+
+    private function ratePairInBits(?string $ratePair): ?array
+    {
+        $parts = explode('/', trim((string) $ratePair));
+        if (count($parts) !== 2) {
+            return null;
+        }
+
+        $values = [];
+        foreach ($parts as $part) {
+            if (preg_match('/^([0-9]+(?:\.[0-9]+)?)([kKmMgG]?)$/', trim($part), $matches) !== 1) {
+                return null;
+            }
+
+            $multiplier = match (strtoupper($matches[2])) {
+                'K' => 1000,
+                'M' => 1000 * 1000,
+                'G' => 1000 * 1000 * 1000,
+                default => 1,
+            };
+            $values[] = (int) round((float) $matches[1] * $multiplier);
+        }
+
+        return $values;
     }
 }

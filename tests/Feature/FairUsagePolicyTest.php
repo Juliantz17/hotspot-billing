@@ -75,7 +75,7 @@ class FairUsagePolicyTest extends TestCase
             'aa:bb:cc:dd:ee:ff' => [
                 'counter_bytes' => 5200,
                 'target' => '192.168.88.10/32',
-                'max_limit' => '5M/5M',
+                'max_limit' => '5000000/5000000',
             ],
         ]);
         $router->shouldReceive('setManagedQueueRate')->once()->with(
@@ -113,7 +113,7 @@ class FairUsagePolicyTest extends TestCase
                 'max_limit' => '5M/5M',
             ],
         ]);
-        $router->shouldReceive('setManagedQueueRate')->once();
+        $router->shouldNotReceive('setManagedQueueRate');
 
         (new FupEnforcementService($router))->enforce();
 
@@ -167,10 +167,10 @@ class FairUsagePolicyTest extends TestCase
             'aa:bb:cc:dd:ee:ff' => [
                 'counter_bytes' => 9 * 1024 * 1024 * 1024,
                 'target' => '192.168.88.10/32',
-                'max_limit' => '5M/5M',
+                'max_limit' => '5000000/5000000',
             ],
         ]);
-        $router->shouldReceive('setManagedQueueRate')->once();
+        $router->shouldNotReceive('setManagedQueueRate');
 
         (new FupEnforcementService($router))->enforce();
 
