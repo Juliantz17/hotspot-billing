@@ -107,6 +107,7 @@ class AdminFeaturesSuiteTest extends TestCase
             'duration_minutes' => 60,
             'status' => 'SUCCESS',
             'expires_at' => $expiresAt,
+            'router_access_removed_at' => Carbon::now()->subMinute(),
             'created_at' => Carbon::now(),
             'updated_at' => Carbon::now(),
         ]);
@@ -128,6 +129,7 @@ class AdminFeaturesSuiteTest extends TestCase
         $this->assertDatabaseHas('hotspot_transactions', [
             'id' => $id,
             'expires_at' => $expiresAt->copy()->addHours(2)->toDateTimeString(),
+            'router_access_removed_at' => null,
         ]);
     }
 
@@ -298,6 +300,16 @@ class AdminFeaturesSuiteTest extends TestCase
                 ],
             ]);
 
+            $mock->shouldReceive('query')->with('/ip/hotspot/cookie/print')->once()->andReturnSelf();
+            $mock->shouldReceive('read')->once()->andReturn([
+                [
+                    'user' => 'hs_aabbccddee11',
+                    'mac-address' => 'AA:BB:CC:DD:EE:11',
+                    'domain' => '',
+                    'expires-in' => '2d23:36:16',
+                ],
+            ]);
+
             $mock->shouldReceive('query')->with('/ip/dhcp-server/lease/print')->once()->andReturnSelf();
             $mock->shouldReceive('read')->once()->andReturn([
                 [
@@ -334,6 +346,10 @@ class AdminFeaturesSuiteTest extends TestCase
         $response->assertSee('DHCP Leases');
         $response->assertSee('IP Bindings');
         $response->assertSee('Hotspot Users');
+        $response->assertSee('Cookies');
+        $response->assertSee('MikroTik Hotspot Cookies');
+        $response->assertSee('hs_aabbccddee11');
+        $response->assertSee('2d23:36:16');
         $response->assertSee('AA:BB:CC:DD:EE:11');
         $response->assertSee('192.168.88.254');
         $response->assertSee('Authenticated');

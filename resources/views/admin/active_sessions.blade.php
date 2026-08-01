@@ -35,7 +35,7 @@
 <div class="mb-6 bg-white border border-gray-300 shadow-sm p-4 rounded-sm flex flex-col gap-4 lg:flex-row lg:justify-between lg:items-center">
     <div>
         <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wide">Router Sessions & Bindings</h3>
-        <p class="text-xs text-gray-500 mt-1">Active shows authenticated logins only. Hotspot Hosts show devices seen by hotspot. DHCP Leases show DHCP-connected devices. IP bindings show saved router rules. Hotspot Users show configured MikroTik users and whether they are authenticating.</p>
+        <p class="text-xs text-gray-500 mt-1">Active shows authenticated logins only. Hotspot Hosts show devices seen by hotspot. DHCP Leases show DHCP-connected devices. IP bindings show saved router rules. Hotspot Users show configured MikroTik users and whether they are authenticating. Cookies show saved automatic-login records.</p>
     </div>
     <div>
         <a href="{{ route('admin.active_sessions') }}" class="bg-gray-800 hover:bg-gray-700 text-white text-xs px-3 py-1.5 rounded-sm border border-gray-800 shadow-sm">
@@ -59,6 +59,9 @@
     </button>
     <button type="button" data-tab-button="users" class="session-tab px-3 py-2 rounded-sm text-xs font-semibold border">
         Hotspot Users <span class="ml-1 text-gray-500">{{ count($routerUsers) }}</span>
+    </button>
+    <button type="button" data-tab-button="cookies" class="session-tab px-3 py-2 rounded-sm text-xs font-semibold border">
+        Cookies <span class="ml-1 text-gray-500">{{ count($hotspotCookies) }}</span>
     </button>
 </div>
 
@@ -406,6 +409,50 @@
                 @empty
                 <tr>
                     <td colspan="8" class="px-4 py-6 text-center text-gray-500 text-sm">No MikroTik hotspot users found.</td>
+                </tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div data-tab-panel="cookies" class="session-panel bg-white border border-gray-300 shadow-sm rounded-sm overflow-hidden">
+    <div class="px-4 py-3 border-b border-gray-200">
+        <h4 class="text-sm font-semibold text-gray-800">MikroTik Hotspot Cookies</h4>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left whitespace-nowrap">
+            <thead class="table-header text-xs uppercase font-semibold">
+                <tr>
+                    <th class="px-4 py-2 border-r border-gray-600">User</th>
+                    <th class="px-4 py-2 border-r border-gray-600">MAC</th>
+                    <th class="px-4 py-2 border-r border-gray-600">Domain</th>
+                    <th class="px-4 py-2 border-r border-gray-600">Expires In</th>
+                    <th class="px-4 py-2">Router Seen</th>
+                </tr>
+            </thead>
+            <tbody class="text-gray-700">
+                @forelse($hotspotCookies as $cookie)
+                <tr class="table-row border-b border-gray-200">
+                    <td class="px-4 py-2 font-mono text-xs font-semibold text-gray-900">{{ $cookie['user'] }}</td>
+                    <td class="px-4 py-2 font-mono text-xs">{{ $cookie['mac'] }}</td>
+                    <td class="px-4 py-2 text-xs">{{ $cookie['domain'] }}</td>
+                    <td class="px-4 py-2 font-mono text-xs">{{ $cookie['expires_in'] }}</td>
+                    <td class="px-4 py-2">
+                        @if($cookie['router_active'])
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-green-100 text-green-800 border border-green-300">Authenticated</span>
+                        @endif
+                        @if($cookie['host_seen'])
+                            <span class="mt-1 inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">Host Seen</span>
+                        @endif
+                        @if(!$cookie['router_active'] && !$cookie['host_seen'])
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-gray-100 text-gray-700 border border-gray-300">Saved</span>
+                        @endif
+                    </td>
+                </tr>
+                @empty
+                <tr>
+                    <td colspan="5" class="px-4 py-6 text-center text-gray-500 text-sm">No MikroTik hotspot cookies found.</td>
                 </tr>
                 @endforelse
             </tbody>

@@ -634,6 +634,7 @@ class AdminController extends Controller
 
         DB::table('hotspot_transactions')->where('id', $id)->update([
             'expires_at' => $newExpiry,
+            'router_access_removed_at' => null,
             'updated_at' => now(),
         ]);
 
@@ -796,6 +797,7 @@ class AdminController extends Controller
         $dhcpLeases = [];
         $ipBindings = [];
         $routerUsers = [];
+        $hotspotCookies = [];
         $activeMap = [];
         $hostsMap = [];
         $bindingsMap = [];
@@ -828,6 +830,7 @@ class AdminController extends Controller
             $hosts = $routerClient->query('/ip/hotspot/host/print')->read();
             $bindings = $routerClient->query('/ip/hotspot/ip-binding/print')->read();
             $hotspotUsers = $routerClient->query('/ip/hotspot/user/print')->read();
+            $cookies = $routerClient->query('/ip/hotspot/cookie/print')->read();
             $leases = $routerClient->query('/ip/dhcp-server/lease/print')->read();
             $queues = $routerClient->query('/queue/simple/print')->read();
             foreach ($activeUsers as $activeUser) {
@@ -973,6 +976,18 @@ class AdminController extends Controller
                     'comment' => $hotspotUser['comment'] ?? '-',
                 ];
             }
+            foreach ($cookies as $cookie) {
+                $mac = strtolower($cookie['mac-address'] ?? '');
+
+                $hotspotCookies[] = [
+                    'user' => $cookie['user'] ?? '-',
+                    'mac' => $cookie['mac-address'] ?? '-',
+                    'domain' => $cookie['domain'] ?? '-',
+                    'expires_in' => $cookie['expires-in'] ?? '-',
+                    'router_active' => $mac !== '' && isset($activeMap[$mac]),
+                    'host_seen' => $mac !== '' && isset($hostsMap[$mac]),
+                ];
+            }
             foreach ($bindings as $binding) {
                 $mac = strtolower($binding['mac-address'] ?? '');
                 $activeUser = $mac !== '' ? ($activeMap[$mac] ?? null) : null;
@@ -996,7 +1011,7 @@ class AdminController extends Controller
             $error = 'Failed to connect to MikroTik router: '.$e->getMessage();
         }
 
-        return view('admin.active_sessions', compact('activeSessions', 'hostsList', 'dhcpLeases', 'ipBindings', 'routerUsers', 'error'));
+        return view('admin.active_sessions', compact('activeSessions', 'hostsList', 'dhcpLeases', 'ipBindings', 'routerUsers', 'hotspotCookies', 'error'));
 
     }
 
