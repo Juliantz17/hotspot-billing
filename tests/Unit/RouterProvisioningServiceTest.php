@@ -208,6 +208,43 @@ class RouterProvisioningServiceTest extends TestCase
         app(RouterProvisioningService::class)->provisionAccess($session, 'Auto-Reconnect Txn');
     }
 
+    public function test_provision_access_continues_when_expected_session_is_already_logged_in()
+    {
+        $session = (object) [
+            'transaction_id' => 'TXN_ALREADY_ACTIVE',
+            'mac_address' => '78:62:56:C5:52:61',
+            'ip_address' => '192.168.88.233',
+            'speed_limit' => '5M/5M',
+        ];
+        $user = $this->hotspotUser('hs_786256c55261', 'hs_786256c55261_pw', '78:62:56:C5:52:61');
+
+        $queries = [];
+        $mock = $this->mockRouterClient([
+            [], [], [],
+            $user,
+            $user,
+            [],
+            $user,
+            [],
+            [['address' => '192.168.88.233']],
+            ['after' => ['message' => 'failure: IP 192.168.88.233 is already logged in']],
+            [['.id' => '*active-existing', 'address' => '192.168.88.233']],
+            [],
+            [],
+            [['.id' => '*queue-new']],
+            [],
+        ], $queries);
+
+        $this->app->bind(RouterClient::class, fn () => $mock);
+        Log::shouldReceive('info')->zeroOrMoreTimes();
+        Log::shouldReceive('error')->never();
+        Log::shouldReceive('warning')->never();
+
+        app(RouterProvisioningService::class)->provisionAccess($session, 'Selcom Txn');
+
+        $this->assertContains(['/queue/simple/add', '=name=RateLimit_78:62:56:C5:52:61', '=target=192.168.88.233/32', '=max-limit=5M/5M', '=comment=Selcom Txn TXN_ALREADY_ACTIVE'], $queries);
+    }
+
     public function test_provision_access_prepares_user_without_error_when_device_has_no_current_hotspot_host()
     {
         $session = (object) [

@@ -236,7 +236,10 @@ class RouterProvisioningService
             '=password='.$credentials['password'],
             '=ip='.$ip,
             '=mac-address='.$mac,
-        ], 'hotspot active login');
+        ], 'hotspot active login', static fn (string $message): bool => (bool) preg_match(
+            '/^failure: IP .+ is already logged in$/i',
+            $message
+        ));
 
         Log::info('MikroTik Hotspot active login command returned.', [
             'mac' => $mac,
@@ -394,12 +397,23 @@ class RouterProvisioningService
         }
     }
 
-    private function runRouterCommand(array|string $query, string $action): array
+    private function runRouterCommand(array|string $query, string $action, ?callable $acceptTrap = null): array
     {
         $response = $this->client()->query($query)->read();
         $trapMessage = $this->routerTrapMessage($response);
 
         if ($trapMessage !== null) {
+            if ($acceptTrap !== null && $acceptTrap($trapMessage)) {
+                Log::info('MikroTik command reported an already-satisfied state; continuing with verification.', [
+                    'action' => $action,
+                    'query' => $this->redactRouterQuery($query),
+                    'response' => $response,
+                    'message' => $trapMessage,
+                ]);
+
+                return $response;
+            }
+
             Log::error('MikroTik command failed.', [
                 'action' => $action,
                 'query' => $this->redactRouterQuery($query),
