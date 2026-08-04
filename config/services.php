@@ -36,9 +36,14 @@ return [
     ],
 
     'mikrotik' => [
+        'enabled' => env('MIKROTIK_ENABLED', env('APP_ENV', 'production') === 'production'),
         'host' => env('MIKROTIK_HOST'),
         'user' => env('MIKROTIK_USER'),
         'pass' => env('MIKROTIK_PASS'),
+        'port' => (int) env('MIKROTIK_PORT', 8728),
+        'connect_timeout' => (int) env('MIKROTIK_CONNECT_TIMEOUT', 2),
+        'socket_timeout' => (int) env('MIKROTIK_SOCKET_TIMEOUT', 2),
+        'attempts' => (int) env('MIKROTIK_ATTEMPTS', 1),
     ],
 
     'selcom' => [
@@ -46,6 +51,15 @@ return [
         'api_secret' => env('SELCOM_API_SECRET'),
         'api_key' => env('SELCOM_API_KEY'),
         'vendor_till' => env('SELCOM_VENDOR_TILL'),
+    ],
+
+    'azampay' => [
+        'app_name' => env('AZAMPAY_APP_NAME'),
+        'client_id' => env('AZAMPAY_CLIENT_ID'),
+        'client_secret' => env('AZAMPAY_CLIENT_SECRET'),
+        'x_api_key' => env('AZAMPAY_X_API_KEY'),
+        'base_url' => env('AZAMPAY_BASE_URL', 'https://checkout.azampay.co.tz'),
+        'auth_url' => env('AZAMPAY_AUTH_URL', 'https://authenticator.azampay.co.tz'),
     ],
 
 ];

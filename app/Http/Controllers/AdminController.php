@@ -185,8 +185,9 @@ class AdminController extends Controller
                 }
             }
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             // Router offline/unreachable fallback values set safely
+            Log::notice('Dashboard rendered without live router metrics.', ['error' => $e->getMessage()]);
         }
 
         // Format Bandwidth nicely

@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Events\WifiPaymentSuccess;
 use App\Models\Package;
+use App\Services\PaymentCompletionService;
+use App\Services\PaymentGatewayManager;
 use App\Services\RouterProvisioningService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -12,6 +14,8 @@ use Illuminate\Support\Facades\Log;
 
 class HotspotController extends Controller
 {
+    public function __construct(private PaymentGatewayManager $gateways, private PaymentCompletionService $completion) {}
+
     public function showCheckout(Request $request)
     {
         $mac = $request->query('mac', '00:00:00:00:00:00');
@@ -175,37 +179,12 @@ class HotspotController extends Controller
 
                 $transaction->status = 'FAILED';
             } else {
-                // Actively poll Selcom for the latest order status
+                // Ask the gateway that created this transaction, when it supports polling.
                 try {
-                    $statusPath = '/v1/checkout/order-status?order_id='.$txn;
-                    $statusResponse = $this->sendSelcomRequest($statusPath, ['order_id' => $txn], 'GET');
-
-                    if ($statusResponse->successful()) {
-                        $responseData = $statusResponse->json();
-
-                        // Selcom returns status inside the data array: "data": [{"payment_status": "..."}]
-                        if (! empty($responseData['data']) && isset($responseData['data'][0]['payment_status'])) {
-                            $paymentStatus = strtoupper($responseData['data'][0]['payment_status']);
-
-                            if (in_array($paymentStatus, ['COMPLETED', 'SUCCESS'])) {
-                                DB::transaction(function () use ($transaction, $txn) {
-                                    DB::table('hotspot_transactions')
-                                        ->where('transaction_id', $txn)
-                                        ->update([
-                                            'status' => 'SUCCESS',
-                                            'expires_at' => now()->addMinutes($transaction->duration_minutes),
-                                            'updated_at' => now(),
-                                        ]);
-                                });
-                                $transaction->status = 'SUCCESS';
-                                event(new WifiPaymentSuccess($transaction));
-                            } elseif (in_array($paymentStatus, ['CANCELLED', 'USERCANCELED', 'USERCANCELLED', 'REJECTED', 'FAIL', 'FAILED'])) {
-                                DB::table('hotspot_transactions')
-                                    ->where('transaction_id', $txn)
-                                    ->update(['status' => 'FAILED', 'updated_at' => now()]);
-                                $transaction->status = 'FAILED';
-                            }
-                        }
+                    $gateway = $this->gateways->gateway($transaction->payment_gateway ?? 'selcom');
+                    if ($status = $gateway->checkStatus($transaction)) {
+                        $this->completion->apply($txn, $status, $gateway->name());
+                        $transaction->status = $status;
                     }
                 } catch (\Exception $e) {
                     // Silently ignore connection errors here and keep polling
@@ -242,11 +221,13 @@ class HotspotController extends Controller
         $amount = $package->price;
 
         $formattedPhone = '255'.substr($request->phone, 1);
-        $transactionId = 'HOTSPOT_'.time();
+        $transactionId = 'HOTSPOT_'.strtoupper((string) str()->ulid());
+        $gateway = $this->gateways->active();
 
         // 1. Log the transaction as PENDING locally
         DB::table('hotspot_transactions')->insert([
             'transaction_id' => $transactionId,
+            'payment_gateway' => $gateway->name(),
             'package_id' => $package->id,
             'mac_address' => $request->mac,
             'ip_address' => $request->ip,
@@ -260,40 +241,8 @@ class HotspotController extends Controller
         ]);
 
         try {
-            // ========================================================
-            // STEP 1: CREATE ORDER MINIMAL
-            // ========================================================
-            $vendorTill = config('services.selcom.vendor_till');
-            if (empty($vendorTill)) {
-                throw new \Exception('Configuration Error: SELCOM_VENDOR_TILL is missing or config is cached.');
-            }
-
-            $orderBody = [
-                'vendor' => $vendorTill,
-                'order_id' => $transactionId,
-                'buyer_email' => 'customer@hotspot.net',
-                'buyer_name' => 'Hotspot Customer',
-                'buyer_phone' => $formattedPhone,
-                'amount' => $amount,
-                'currency' => 'TZS',
-                'buyer_remarks' => 'WiFi Access',
-                'merchant_remarks' => 'WiFi Access',
-                'no_of_items' => 1,
-                'webhook' => base64_encode(route('webhook.selcom')),
-            ];
-
-            $orderResponse = $this->sendSelcomRequest('/v1/checkout/create-order-minimal', $orderBody);
-
-            // ========================================================
-            // STEP 2: WALLET PULL PAYMENT (Triggers USSD STK Push)
-            // ========================================================
-            $walletBody = [
-                'transid' => 'TXN_'.uniqid(),
-                'order_id' => $transactionId,
-                'msisdn' => $formattedPhone,
-            ];
-
-            $walletResponse = $this->sendSelcomRequest('/v1/checkout/wallet-payment', $walletBody);
+            $transaction = DB::table('hotspot_transactions')->where('transaction_id', $transactionId)->first();
+            $gateway->initiate($transaction);
 
             // Successfully triggered both calls! Redirect to the waiting UI (Post/Redirect/Get pattern)
             return redirect()->route('hotspot.waiting', ['txn' => $transactionId]);

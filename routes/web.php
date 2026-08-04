@@ -4,6 +4,8 @@ use App\Http\Controllers\Admin\PackageController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\HotspotController;
+use App\Http\Controllers\PaymentWebhookController;
+use App\Http\Controllers\Admin\PaymentGatewayController;
 use Illuminate\Support\Facades\Route;
 
 // The URL customers are dropped onto from the MikroTik network
@@ -18,7 +20,7 @@ Route::post('/process-payment', [HotspotController::class, 'processPayment'])->n
 Route::get('/waiting/{txn}', [HotspotController::class, 'showWaiting'])->name('hotspot.waiting');
 
 // Webhook for Selcom Payment confirmation
-Route::post('/webhook/selcom', [HotspotController::class, 'handleWebhook'])->name('webhook.selcom');
+Route::post('/webhook/{gateway}', PaymentWebhookController::class)->whereIn('gateway', ['selcom', 'azampay'])->name('webhook.gateway');
 
 // Admin Auth
 Route::get('/admin/login', [AuthController::class, 'showLogin'])->name('admin.login');
@@ -30,6 +32,8 @@ Route::middleware(['admin'])->prefix('admin')->group(function () {
     Route::get('/', [AdminController::class, 'index'])->name('admin.dashboard');
     Route::get('/earnings', [AdminController::class, 'earnings'])->name('admin.earnings');
     Route::get('/analytics', [AdminController::class, 'analytics'])->name('admin.analytics');
+    Route::get('/payment-gateway', [PaymentGatewayController::class, 'edit'])->name('admin.payment_gateway');
+    Route::put('/payment-gateway', [PaymentGatewayController::class, 'update'])->name('admin.payment_gateway.update');
 
     // Active Sessions & Router status
     Route::get('/active-sessions', [AdminController::class, 'activeSessions'])->name('admin.active_sessions');
