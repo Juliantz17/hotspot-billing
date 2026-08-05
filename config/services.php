@@ -57,9 +57,10 @@ return [
         'app_name' => env('AZAMPAY_APP_NAME'),
         'client_id' => env('AZAMPAY_CLIENT_ID'),
         'client_secret' => env('AZAMPAY_CLIENT_SECRET'),
-        'x_api_key' => env('AZAMPAY_X_API_KEY'),
         'base_url' => env('AZAMPAY_BASE_URL', 'https://checkout.azampay.co.tz'),
         'auth_url' => env('AZAMPAY_AUTH_URL', 'https://authenticator.azampay.co.tz'),
+        'ca_bundle' => env('AZAMPAY_CA_BUNDLE'),
+        'mno_checkout_path' => env('AZAMPAY_MNO_CHECKOUT_PATH', '/azampay/mno/checkout'),
     ],
 
 ];
