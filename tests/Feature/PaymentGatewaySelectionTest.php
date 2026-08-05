@@ -135,4 +135,46 @@ class PaymentGatewaySelectionTest extends TestCase
             'status' => 'SUCCESS',
         ]);
     }
+
+    public function test_failed_gateway_initiation_is_preserved_for_auditing(): void
+    {
+        $failingGateway = new class implements PaymentGateway
+        {
+            public function name(): string
+            {
+                return 'selcom';
+            }
+
+            public function initiate(object $transaction): void
+            {
+                throw new \RuntimeException('Gateway unavailable');
+            }
+
+            public function checkStatus(object $transaction): ?string
+            {
+                return null;
+            }
+
+            public function handleWebhook(Request $request): Response
+            {
+                return response();
+            }
+        };
+        app(PaymentGatewayManager::class)->register('selcom', $failingGateway);
+
+        $package = Package::create([
+            'name' => 'Audit Package', 'price' => 1000, 'duration_minutes' => 60,
+            'speed_limit' => '2M/2M', 'is_active' => true,
+        ]);
+
+        $this->from('/checkout')->post('/process-payment', [
+            'phone' => '0712345678', 'package_id' => $package->id,
+            'mac' => '00:11:22:33:44:77', 'ip' => '192.168.88.11',
+        ])->assertRedirect('/checkout')->assertSessionHasErrors('phone');
+
+        $this->assertDatabaseHas('hotspot_transactions', [
+            'payment_gateway' => 'selcom', 'status' => 'FAILED',
+            'mac_address' => '00:11:22:33:44:77',
+        ]);
+    }
 }
