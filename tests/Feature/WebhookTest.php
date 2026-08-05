@@ -12,61 +12,57 @@ class WebhookTest extends TestCase
 {
     use RefreshDatabase;
 
+    private const API_KEY = 'test_api_key';
+    private const API_SECRET = 'test_secret';
+    private const SIGNED_FIELDS = 'transid,order_id,reference,result,resultcode,payment_status';
+
     protected function setUp(): void
     {
         parent::setUp();
-
-        // Create the necessary table schema for the test
-        // Since we are using RefreshDatabase, migrations will run.
-        // We assume the migration for hotspot_transactions exists.
-        // Just in case it doesn't run properly in test env, we can
-        // quickly ensure it exists.
-        if (! DB::getSchemaBuilder()->hasTable('hotspot_transactions')) {
-            DB::getSchemaBuilder()->create('hotspot_transactions', function ($table) {
-                $table->id();
-                $table->string('transaction_id');
-                $table->string('mac_address');
-                $table->string('phone_number');
-                $table->integer('amount');
-                $table->integer('duration_minutes');
-                $table->string('status');
-                $table->timestamp('expires_at')->nullable();
-                $table->timestamps();
-            });
-        }
-    }
-
-    public function test_webhook_fails_without_signature()
-    {
-        $response = $this->postJson('/webhook/selcom', [
-            'order_id' => 'TXN_123',
-            'payment_status' => 'SUCCESS',
+        config([
+            'services.selcom.api_key' => self::API_KEY,
+            'services.selcom.api_secret' => self::API_SECRET,
         ]);
-
-        $response->assertStatus(401);
     }
 
-    public function test_webhook_fails_with_invalid_signature()
+    public function test_webhook_fails_without_authentication_headers(): void
     {
-        $response = $this->withHeaders([
-            'X-Selcom-Signature' => 'invalid_signature',
-            'X-Selcom-Timestamp' => now()->toIso8601String(),
-        ])->postJson('/webhook/selcom', [
-            'order_id' => 'TXN_123',
-            'payment_status' => 'SUCCESS',
-        ]);
-
-        $response->assertStatus(401);
+        $this->postJson('/webhook/selcom', $this->payload('TXN_123'))
+            ->assertUnauthorized()
+            ->assertJson(['reason' => 'missing_authentication_headers']);
     }
 
-    public function test_webhook_succeeds_with_valid_signature()
+    public function test_webhook_fails_with_invalid_digest(): void
+    {
+        $payload = $this->payload('TXN_123');
+        $timestamp = now()->toIso8601String();
+
+        $this->withHeaders($this->headers($payload, $timestamp, 'invalid-digest'))
+            ->postJson('/webhook/selcom', $payload)
+            ->assertUnauthorized()
+            ->assertJson(['reason' => 'invalid_digest']);
+    }
+
+    public function test_webhook_rejects_a_digest_that_does_not_sign_critical_fields(): void
+    {
+        $payload = $this->payload('TXN_123');
+        $timestamp = now()->toIso8601String();
+        $signedFields = 'transid,reference,result,resultcode,payment_status';
+
+        $this->withHeaders($this->headers($payload, $timestamp, null, $signedFields))
+            ->postJson('/webhook/selcom', $payload)
+            ->assertUnauthorized()
+            ->assertJson(['reason' => 'invalid_signed_fields']);
+    }
+
+    public function test_webhook_succeeds_with_documented_selcom_digest_headers(): void
     {
         Event::fake();
-
         $transactionId = 'TXN_123';
 
         DB::table('hotspot_transactions')->insert([
             'transaction_id' => $transactionId,
+            'payment_gateway' => 'selcom',
             'mac_address' => '00:11:22:33:44:55',
             'phone_number' => '255700000000',
             'amount' => 500,
@@ -76,7 +72,23 @@ class WebhookTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $payload = [
+        $payload = $this->payload($transactionId);
+        $timestamp = now()->toIso8601String();
+
+        $this->withHeaders($this->headers($payload, $timestamp))
+            ->postJson('/webhook/selcom', $payload)
+            ->assertOk()
+            ->assertJson(['status' => 'SUCCESS']);
+
+        $transaction = DB::table('hotspot_transactions')->where('transaction_id', $transactionId)->first();
+        $this->assertSame('SUCCESS', $transaction->status);
+        $this->assertNotNull($transaction->expires_at);
+        Event::assertDispatched(WifiPaymentSuccess::class, fn ($event) => $event->transaction->transaction_id === $transactionId);
+    }
+
+    private function payload(string $transactionId): array
+    {
+        return [
             'result' => 'SUCCESS',
             'resultcode' => '000',
             'order_id' => $transactionId,
@@ -87,29 +99,24 @@ class WebhookTest extends TestCase
             'phone' => '255700000000',
             'payment_status' => 'COMPLETED',
         ];
+    }
 
-        $jsonData = json_encode($payload);
-        $timestamp = now()->toIso8601String();
-        $stringToSign = 'timestamp='.$timestamp.'&'.$jsonData;
-        $signature = base64_encode(hash_hmac('sha256', $stringToSign, env('SELCOM_API_SECRET', 'test_secret'), true));
+    private function headers(array $payload, string $timestamp, ?string $digest = null, string $signedFields = self::SIGNED_FIELDS): array
+    {
+        if ($digest === null) {
+            $signingString = 'timestamp='.$timestamp;
+            foreach (explode(',', $signedFields) as $field) {
+                $signingString .= '&'.$field.'='.$payload[$field];
+            }
+            $digest = base64_encode(hash_hmac('sha256', $signingString, self::API_SECRET, true));
+        }
 
-        // Override the env secret for the test
-        config(['app.env' => 'testing']);
-        putenv('SELCOM_API_SECRET=test_secret');
-
-        $response = $this->withHeaders([
-            'X-Selcom-Signature' => $signature,
-            'X-Selcom-Timestamp' => $timestamp,
-        ])->postJson('/webhook/selcom', $payload);
-
-        $response->assertStatus(200);
-
-        $txn = DB::table('hotspot_transactions')->where('transaction_id', $transactionId)->first();
-        $this->assertEquals('SUCCESS', $txn->status);
-        $this->assertNotNull($txn->expires_at);
-
-        Event::assertDispatched(WifiPaymentSuccess::class, function ($event) use ($transactionId) {
-            return $event->transaction->transaction_id === $transactionId;
-        });
+        return [
+            'Authorization' => 'SELCOM '.base64_encode(self::API_KEY),
+            'Digest-Method' => 'HS256',
+            'Digest' => $digest,
+            'Timestamp' => $timestamp,
+            'Signed-Fields' => $signedFields,
+        ];
     }
 }

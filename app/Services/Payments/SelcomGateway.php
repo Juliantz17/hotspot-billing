@@ -64,30 +64,64 @@ class SelcomGateway implements PaymentGateway
 
     public function handleWebhook(Request $request): Response
     {
-        $signature = $request->header('X-Selcom-Signature');
-        $timestamp = $request->header('X-Selcom-Timestamp');
-        if (! $signature || ! $timestamp) {
-            return response(['error' => 'Unauthorized'], 401);
-        }
-
-        $expected = base64_encode(hash_hmac(
-            'sha256',
-            'timestamp='.$timestamp.'&'.$request->getContent(),
-            (string) config('services.selcom.api_secret'),
-            true
-        ));
-        if (! hash_equals($expected, $signature)) {
-            return response(['error' => 'Unauthorized'], 401);
+        if ($authenticationError = $this->webhookAuthenticationError($request)) {
+            return response(['error' => 'Unauthorized', 'reason' => $authenticationError], 401);
         }
 
         $status = strtoupper((string) $request->input('payment_status'));
-        $normalized = in_array($status, ['SUCCESS', 'COMPLETED'], true) ? 'SUCCESS'
+        $normalized = in_array($status, ['SUCCESS', 'COMPLETE', 'COMPLETED'], true) ? 'SUCCESS'
             : (in_array($status, ['FAIL', 'FAILED', 'CANCELLED', 'USERCANCELED'], true) ? 'FAILED' : null);
         if ($normalized) {
             $this->completion->apply((string) $request->input('order_id'), $normalized, $this->name());
         }
 
         return response(['status' => 'SUCCESS', 'message' => 'Received']);
+    }
+
+    private function webhookAuthenticationError(Request $request): ?string
+    {
+        $authorization = (string) $request->header('Authorization');
+        $digestMethod = strtoupper((string) $request->header('Digest-Method'));
+        $digest = (string) $request->header('Digest');
+        $timestamp = (string) $request->header('Timestamp');
+        $signedFieldsHeader = (string) $request->header('Signed-Fields');
+
+        if ($authorization === '' || $digestMethod === '' || $digest === '' || $timestamp === '' || $signedFieldsHeader === '') {
+            return 'missing_authentication_headers';
+        }
+
+        $expectedAuthorization = 'SELCOM '.base64_encode((string) config('services.selcom.api_key'));
+        if (! hash_equals($expectedAuthorization, $authorization)) {
+            return 'invalid_authorization';
+        }
+
+        if ($digestMethod !== 'HS256') {
+            return 'unsupported_digest_method';
+        }
+
+        $signedFields = array_map('trim', explode(',', $signedFieldsHeader));
+        $requiredFields = ['transid', 'order_id', 'reference', 'result', 'resultcode', 'payment_status'];
+        if (count($signedFields) !== count(array_unique($signedFields)) || array_diff($requiredFields, $signedFields)) {
+            return 'invalid_signed_fields';
+        }
+
+        $signingString = 'timestamp='.$timestamp;
+        foreach ($signedFields as $field) {
+            $value = $request->input($field);
+            if ($field === '' || ! is_scalar($value)) {
+                return 'invalid_signed_fields';
+            }
+            $signingString .= '&'.$field.'='.$value;
+        }
+
+        $expectedDigest = base64_encode(hash_hmac(
+            'sha256',
+            $signingString,
+            (string) config('services.selcom.api_secret'),
+            true
+        ));
+
+        return hash_equals($expectedDigest, $digest) ? null : 'invalid_digest';
     }
 
     private function request(string $path, array $body, string $method = 'POST'): ClientResponse
