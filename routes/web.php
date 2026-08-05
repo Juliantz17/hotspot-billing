@@ -6,6 +6,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\HotspotController;
 use App\Http\Controllers\PaymentWebhookController;
 use App\Http\Controllers\Admin\PaymentGatewayController;
+use App\Http\Controllers\Admin\WebhookLogController;
 use Illuminate\Support\Facades\Route;
 
 // The URL customers are dropped onto from the MikroTik network
@@ -34,6 +35,7 @@ Route::middleware(['admin'])->prefix('admin')->group(function () {
     Route::get('/analytics', [AdminController::class, 'analytics'])->name('admin.analytics');
     Route::get('/payment-gateway', [PaymentGatewayController::class, 'edit'])->name('admin.payment_gateway');
     Route::put('/payment-gateway', [PaymentGatewayController::class, 'update'])->name('admin.payment_gateway.update');
+    Route::get('/payment-webhooks', [WebhookLogController::class, 'index'])->name('admin.webhook_logs');
 
     // Active Sessions & Router status
     Route::get('/active-sessions', [AdminController::class, 'activeSessions'])->name('admin.active_sessions');
