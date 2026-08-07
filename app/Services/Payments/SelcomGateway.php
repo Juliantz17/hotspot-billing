@@ -80,13 +80,6 @@ class SelcomGateway implements PaymentGateway
 
     private function webhookAuthenticationError(Request $request): ?string
     {
-
-         dd([
-        'headers' => $request->headers->all(),
-        'server' => $request->server->all(),
-        'body' => $request->all(),
-        ]);
-
         $authorization = (string) $request->header('Authorization');
         $digestMethod = strtoupper((string) $request->header('Digest-Method'));
         $digest = (string) $request->header('Digest');

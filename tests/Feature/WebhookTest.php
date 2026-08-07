@@ -55,7 +55,7 @@ class WebhookTest extends TestCase
             ->assertJson(['reason' => 'invalid_signed_fields']);
     }
 
-    public function test_webhook_succeeds_with_documented_selcom_digest_headers(): void
+    public function test_verified_webhook_completes_transaction_without_status_polling(): void
     {
         Event::fake();
         $transactionId = 'TXN_123';
@@ -83,6 +83,9 @@ class WebhookTest extends TestCase
         $transaction = DB::table('hotspot_transactions')->where('transaction_id', $transactionId)->first();
         $this->assertSame('SUCCESS', $transaction->status);
         $this->assertNotNull($transaction->expires_at);
+        $webhookLog = DB::table('payment_webhook_logs')->where('order_id', $transactionId)->first();
+        $this->assertSame(200, $webhookLog->response_status);
+        $this->assertNotNull($webhookLog->processed_at);
         Event::assertDispatched(WifiPaymentSuccess::class, fn ($event) => $event->transaction->transaction_id === $transactionId);
     }
 
