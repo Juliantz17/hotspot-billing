@@ -65,7 +65,7 @@ class SelcomGateway implements PaymentGateway
     public function handleWebhook(Request $request): Response
     {
         if ($authenticationError = $this->webhookAuthenticationError($request)) {
-            return response(['error' => 'Unauthorized', 'reason' => $authenticationError], 401);
+            return response(['error' => 'Unauthorized', ...$authenticationError], 401);
         }
 
         $status = strtoupper((string) $request->input('payment_status'));
@@ -78,38 +78,50 @@ class SelcomGateway implements PaymentGateway
         return response(['status' => 'SUCCESS', 'message' => 'Received']);
     }
 
-    private function webhookAuthenticationError(Request $request): ?string
+    private function webhookAuthenticationError(Request $request): ?array
     {
-        $authorization = (string) $request->header('Authorization');
-        $digestMethod = strtoupper((string) $request->header('Digest-Method'));
-        $digest = (string) $request->header('Digest');
-        $timestamp = (string) $request->header('Timestamp');
-        $signedFieldsHeader = (string) $request->header('Signed-Fields');
+        $headers = [
+            'Authorization' => (string) $request->header('Authorization'),
+            'Digest-Method' => (string) $request->header('Digest-Method'),
+            'Digest' => (string) $request->header('Digest'),
+            'Timestamp' => (string) $request->header('Timestamp'),
+            'Signed-Fields' => (string) $request->header('Signed-Fields'),
+        ];
+        $missingHeaders = array_keys(array_filter($headers, fn (string $value) => $value === ''));
 
-        if ($authorization === '' || $digestMethod === '' || $digest === '' || $timestamp === '' || $signedFieldsHeader === '') {
-            return 'missing_authentication_headers';
+        if ($missingHeaders !== []) {
+            return [
+                'reason' => 'missing_authentication_headers',
+                'missing_headers' => $missingHeaders,
+            ];
         }
+
+        $authorization = $headers['Authorization'];
+        $digestMethod = strtoupper($headers['Digest-Method']);
+        $digest = $headers['Digest'];
+        $timestamp = $headers['Timestamp'];
+        $signedFieldsHeader = $headers['Signed-Fields'];
 
         $expectedAuthorization = 'SELCOM '.base64_encode((string) config('services.selcom.api_key'));
         if (! hash_equals($expectedAuthorization, $authorization)) {
-            return 'invalid_authorization';
+            return ['reason' => 'invalid_authorization'];
         }
 
         if ($digestMethod !== 'HS256') {
-            return 'unsupported_digest_method';
+            return ['reason' => 'unsupported_digest_method'];
         }
 
         $signedFields = array_map('trim', explode(',', $signedFieldsHeader));
         $requiredFields = ['transid', 'order_id', 'reference', 'result', 'resultcode', 'payment_status'];
         if (count($signedFields) !== count(array_unique($signedFields)) || array_diff($requiredFields, $signedFields)) {
-            return 'invalid_signed_fields';
+            return ['reason' => 'invalid_signed_fields'];
         }
 
         $signingString = 'timestamp='.$timestamp;
         foreach ($signedFields as $field) {
             $value = $request->input($field);
             if ($field === '' || ! is_scalar($value)) {
-                return 'invalid_signed_fields';
+                return ['reason' => 'invalid_signed_fields'];
             }
             $signingString .= '&'.$field.'='.$value;
         }
@@ -121,7 +133,7 @@ class SelcomGateway implements PaymentGateway
             true
         ));
 
-        return hash_equals($expectedDigest, $digest) ? null : 'invalid_digest';
+        return hash_equals($expectedDigest, $digest) ? null : ['reason' => 'invalid_digest'];
     }
 
     private function request(string $path, array $body, string $method = 'POST'): ClientResponse

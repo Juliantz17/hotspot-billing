@@ -13,7 +13,9 @@ class WebhookTest extends TestCase
     use RefreshDatabase;
 
     private const API_KEY = 'test_api_key';
+
     private const API_SECRET = 'test_secret';
+
     private const SIGNED_FIELDS = 'transid,order_id,reference,result,resultcode,payment_status';
 
     protected function setUp(): void
@@ -29,7 +31,22 @@ class WebhookTest extends TestCase
     {
         $this->postJson('/webhook/selcom', $this->payload('TXN_123'))
             ->assertUnauthorized()
-            ->assertJson(['reason' => 'missing_authentication_headers']);
+            ->assertJson([
+                'reason' => 'missing_authentication_headers',
+                'missing_headers' => [
+                    'Authorization',
+                    'Digest-Method',
+                    'Digest',
+                    'Timestamp',
+                    'Signed-Fields',
+                ],
+            ]);
+
+        $responseBody = DB::table('payment_webhook_logs')->where('order_id', 'TXN_123')->value('response_body');
+        $this->assertSame(
+            ['Authorization', 'Digest-Method', 'Digest', 'Timestamp', 'Signed-Fields'],
+            json_decode($responseBody, true)['missing_headers']
+        );
     }
 
     public function test_webhook_fails_with_invalid_digest(): void
