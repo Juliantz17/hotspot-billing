@@ -24,7 +24,37 @@ class WebhookTest extends TestCase
         config([
             'services.selcom.api_key' => self::API_KEY,
             'services.selcom.api_secret' => self::API_SECRET,
+            'services.selcom.verify_webhook' => true,
         ]);
+    }
+
+    public function test_webhook_can_be_accepted_without_authentication_when_verification_is_disabled(): void
+    {
+        Event::fake();
+        config(['services.selcom.verify_webhook' => false]);
+        $transactionId = 'TXN_UNSIGNED';
+
+        DB::table('hotspot_transactions')->insert([
+            'transaction_id' => $transactionId,
+            'payment_gateway' => 'selcom',
+            'mac_address' => '00:11:22:33:44:55',
+            'phone_number' => '255700000000',
+            'amount' => 500,
+            'duration_minutes' => 60,
+            'status' => 'PENDING',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->postJson('/webhook/selcom', $this->payload($transactionId))
+            ->assertOk()
+            ->assertJson(['status' => 'SUCCESS']);
+
+        $this->assertDatabaseHas('hotspot_transactions', [
+            'transaction_id' => $transactionId,
+            'status' => 'SUCCESS',
+        ]);
+        Event::assertDispatched(WifiPaymentSuccess::class);
     }
 
     public function test_webhook_fails_without_authentication_headers(): void

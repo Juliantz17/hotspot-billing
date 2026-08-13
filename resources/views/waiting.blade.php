@@ -232,10 +232,10 @@
             window.location.href = 'https://www.google.com';
         }, 3000);
         @elseif($status !== 'FAILED')
-        // Only reload if the payment is still pending
+        // Selcom may not deliver a callback, so check its order-status API every 10 seconds.
         setTimeout(function() {
             window.location.reload();
-        }, 5000);
+        }, 10000);
         @endif
     </script>
 

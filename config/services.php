@@ -51,6 +51,7 @@ return [
         'api_secret' => env('SELCOM_API_SECRET'),
         'api_key' => env('SELCOM_API_KEY'),
         'vendor_till' => env('SELCOM_VENDOR_TILL'),
+        'verify_webhook' => env('SELCOM_VERIFY_WEBHOOK', false),
     ],
 
     'azampay' => [

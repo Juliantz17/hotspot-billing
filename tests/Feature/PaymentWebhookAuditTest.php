@@ -11,6 +11,8 @@ class PaymentWebhookAuditTest extends TestCase
 
     public function test_rejected_selcom_webhook_is_recorded_before_validation(): void
     {
+        config(['services.selcom.verify_webhook' => true]);
+
         $this->postJson('/webhook/selcom', [
             'order_id' => 'AUDIT-SELCOM-1',
             'transid' => 'GATEWAY-TXN-1',

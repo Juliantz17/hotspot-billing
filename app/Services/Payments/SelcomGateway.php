@@ -64,8 +64,10 @@ class SelcomGateway implements PaymentGateway
 
     public function handleWebhook(Request $request): Response
     {
-        if ($authenticationError = $this->webhookAuthenticationError($request)) {
-            return response(['error' => 'Unauthorized', ...$authenticationError], 401);
+        if (config('services.selcom.verify_webhook')) {
+            if ($authenticationError = $this->webhookAuthenticationError($request)) {
+                return response(['error' => 'Unauthorized', ...$authenticationError], 401);
+            }
         }
 
         $status = strtoupper((string) $request->input('payment_status'));

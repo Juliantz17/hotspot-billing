@@ -70,7 +70,10 @@ SELCOM_BASE_URL=https://apigw.selcommobile.com
 SELCOM_API_KEY=your_api_key
 SELCOM_API_SECRET=your_api_secret
 SELCOM_VENDOR_TILL=your_vendor_till
+SELCOM_VERIFY_WEBHOOK=false
 ```
+
+`SELCOM_VERIFY_WEBHOOK=false` accepts Selcom callbacks that do not contain signature headers. Keep the browser polling fallback enabled; the waiting page checks Selcom's order-status API every 10 seconds. Change this setting to `true` once Selcom sends signed callbacks.
 
 Your production app URL must be correct because Selcom webhooks depend on it:
 
