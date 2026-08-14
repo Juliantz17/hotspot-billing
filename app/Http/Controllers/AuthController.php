@@ -3,13 +3,12 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Session;
 
 class AuthController extends Controller
 {
-    public function showLogin()
+    public function showLogin(Request $request)
     {
-        if (Session::has('admin_logged_in')) {
+        if ($request->session()->has('admin_logged_in')) {
             return redirect()->route('admin.dashboard');
         }
 
@@ -23,11 +22,16 @@ class AuthController extends Controller
             'password' => 'required',
         ]);
 
-        $adminUser = env('ADMIN_USER', 'admin');
-        $adminPass = env('ADMIN_PASS', 'password');
+        $adminUser = (string) config('admin.username', '');
+        $adminPass = (string) config('admin.password', '');
+        $username = (string) $request->input('username');
+        $password = (string) $request->input('password');
 
-        if ($request->username === $adminUser && $request->password === $adminPass) {
-            Session::put('admin_logged_in', true);
+        if ($adminUser !== '' && $adminPass !== ''
+            && hash_equals($adminUser, $username)
+            && hash_equals($adminPass, $password)) {
+            $request->session()->regenerate();
+            $request->session()->put('admin_logged_in', true);
 
             return redirect()->route('admin.dashboard');
         }
@@ -35,9 +39,10 @@ class AuthController extends Controller
         return back()->withErrors(['error' => 'Invalid credentials']);
     }
 
-    public function logout()
+    public function logout(Request $request)
     {
-        Session::forget('admin_logged_in');
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
 
         return redirect()->route('admin.login');
     }

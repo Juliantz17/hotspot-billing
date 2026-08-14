@@ -124,6 +124,13 @@ MIKROTIK_USER=api-user
 MIKROTIK_PASS=api-password
 ```
 
+After changing production credentials, rebuild Laravel's cached configuration so the admin login uses the new values:
+
+```bash
+php artisan optimize:clear
+php artisan config:cache
+```
+
 Run migrations:
 
 ```bash

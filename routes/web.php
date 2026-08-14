@@ -25,7 +25,7 @@ Route::post('/webhook/{gateway}', PaymentWebhookController::class)->whereIn('gat
 
 // Admin Auth
 Route::get('/admin/login', [AuthController::class, 'showLogin'])->name('admin.login');
-Route::post('/admin/login', [AuthController::class, 'processLogin'])->name('admin.login.submit');
+Route::post('/admin/login', [AuthController::class, 'processLogin'])->middleware('throttle:5,1')->name('admin.login.submit');
 Route::post('/admin/logout', [AuthController::class, 'logout'])->name('admin.logout');
 
 // Admin Dashboard & Features
